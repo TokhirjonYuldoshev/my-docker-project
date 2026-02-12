@@ -2,42 +2,38 @@ pipeline {
     agent any
 
     environment {
-        // Название твоего образа
-        IMAGE_NAME = "my-docker-app"
-        IMAGE_TAG  = "${env.BUILD_NUMBER}" // Тег будет равен номеру сборки
+        // Имя твоего будущего образа
+        IMAGE_NAME = "shoxrux-app"
+        IMAGE_TAG  = "${env.BUILD_NUMBER}"
     }
 
     stages {
         stage('Checkout') {
             steps {
-                echo 'Скачиваем код из Git...'
+                echo 'Шаг 1: Забираем актуальный код из GitHub...'
                 checkout scm
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Build Image') {
             steps {
-                echo 'Начинаем сборку образа...'
-                script {
-                    // Команда сборки Docker-образа
-                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
-                }
+                echo "Шаг 2: Собираем Docker-образ ${IMAGE_NAME}..."
+                // Собираем образ, используя Dockerfile в корне папки
+                sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
             }
         }
 
-        stage('Test Container') {
+        stage('Test Run') {
             steps {
-                echo 'Проверяем, что контейнер запускается...'
-                script {
-                    // Запускаем контейнер и проверяем, что он выдает нужный текст
-                    sh "docker run --rm ${IMAGE_NAME}:${IMAGE_TAG}"
-                }
+                echo 'Шаг 3: Проверяем работу контейнера...'
+                // Запускаем контейнер и смотрим, выведет ли он наше сообщение из app.py
+                sh "docker run --rm ${IMAGE_NAME}:${IMAGE_TAG}"
             }
         }
 
         stage('Clean Up') {
             steps {
-                echo 'Удаляем старые образы, чтобы не занимать место...'
+                echo 'Шаг 4: Очистка системы от временного образа...'
                 sh "docker rmi ${IMAGE_NAME}:${IMAGE_TAG}"
             }
         }
@@ -45,10 +41,10 @@ pipeline {
 
     post {
         success {
-            echo 'Ура! Образ собран и протестирован.'
+            echo 'ПОБЕДА: Пайплайн завершен успешно!'
         }
         failure {
-            echo 'Что-то пошло не так. Проверь логи Docker.'
+            echo 'ОШИБКА: Что-то пошло не так. Проверь логи сборки.'
         }
     }
 }
