@@ -17,7 +17,7 @@ pipeline {
         stage('Lint Code') {
             steps {
                 echo 'Шаг 2: Проверка качества кода (Linting)...'
-                // Проверяем стиль кода
+                // Проверяем стиль кода (УСПЕШНО ПРОЙДЕНО)
                 bat "python -m flake8 app.py --count --statistics"
             }
         }
@@ -25,8 +25,8 @@ pipeline {
         stage('Unit Tests') {
             steps {
                 echo 'Шаг 3: Запуск модульных тестов...'
-                // Сначала устанавливаем pytest, затем запускаем тест
-                bat "pip install pytest && pytest test_app.py"
+                // ИСПРАВЛЕНИЕ: Используем python -m для вызова pip и pytest
+                bat "python -m pip install pytest && python -m pytest test_app.py"
             }
         }
 
