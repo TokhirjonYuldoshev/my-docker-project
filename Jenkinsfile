@@ -66,24 +66,22 @@ pipeline {
         }
     }
 
-    // --- БЛОК УВЕДОМЛЕНИЙ В TELEGRAM ---
+   // --- ИСПРАВЛЕННЫЙ БЛОК УВЕДОМЛЕНИЙ (БЕЗ ПЕРЕНОСОВ СТРОК) ---
     post {
         always {
             script {
-                // Достаем секреты (Токен и Chat ID)
                 withCredentials([string(credentialsId: 'telegram-token', variable: 'BOT_TOKEN'),
                                  string(credentialsId: 'telegram-chat-id', variable: 'CHAT_ID')]) {
                     
-                    // Формируем красивые сообщения (Groovy переменные)
-                    def successMsg = "✅ SUCCESS! Build: #${env.BUILD_NUMBER}\n📦 Image: ${DOCKER_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
-                    def failureMsg = "❌ FAILED! Build: #${env.BUILD_NUMBER}\n⚠️ Check Jenkins Console!"
+                    // УБРАЛИ \n (переносы строк), чтобы Windows не ломалась
+                    def successMsg = "SUCCESS! Build: #${env.BUILD_NUMBER} -- Image: ${DOCKER_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
+                    def failureMsg = "FAILED! Build: #${env.BUILD_NUMBER} -- Check Jenkins Console"
                     
                     if (currentBuild.result == null || currentBuild.result == 'SUCCESS') {
-                        echo "Отправляем сообщение об УСПЕХЕ..."
-                        // Используем curl с флагом -k (insecure) для Windows и --data-urlencode для текста
+                        echo "Отправка в Telegram..."
                         bat "curl -k -s -X POST https://api.telegram.org/bot%BOT_TOKEN%/sendMessage -d chat_id=%CHAT_ID% --data-urlencode \"text=${successMsg}\""
                     } else {
-                        echo "Отправляем сообщение об ОШИБКЕ..."
+                        echo "Отправка ошибки..."
                         bat "curl -k -s -X POST https://api.telegram.org/bot%BOT_TOKEN%/sendMessage -d chat_id=%CHAT_ID% --data-urlencode \"text=${failureMsg}\""
                     }
                 }
