@@ -30,5 +30,10 @@ updates:
       time: "06:30"
       timezone: "Europe/Minsk"
     open-pull-requests-limit: 2
+    ignore:
+      - dependency-name: "python"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
     commit-message:
       prefix: deps
