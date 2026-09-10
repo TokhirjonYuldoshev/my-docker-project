@@ -4,8 +4,8 @@
 
 Небольшой, но инженерно оформленный QA/DevOps portfolio-проект, который показывает два независимых пути автоматизации качества:
 
-- **GitHub Actions CI** проверяет каждый Pull Request и push в `main` через Flake8, Pytest, Docker runtime smoke и blocking security gate на Trivy;
-- **Jenkins delivery pipeline** повторяет quality gates, собирает и smoke-тестирует Docker image, публикует версионный image в Docker Hub и отправляет результат в Telegram;
+- **GitHub Actions CI** проверяет каждый Pull Request и push в `main` через Flake8, Pytest, Docker runtime smoke, non-root runtime assertion и blocking security gate на Trivy;
+- **Jenkins delivery pipeline** повторяет quality gates, собирает и smoke-тестирует Docker image, а публикацию versioned image в Docker Hub разрешает только из `main`;
 - **Telegram observability** для GitHub Actions вынесена в отдельный job и не может подменить реальный CI result.
 
 ## Архитектура автоматизации
@@ -14,8 +14,8 @@
 flowchart LR
     C[Изменение кода] --> GH[GitHub Actions CI]
     GH --> Q1[Flake8]
-    GH --> T1[Pytest]
-    GH --> D1[Docker build + runtime smoke]
+    GH --> T1[Pytest + JUnit evidence]
+    GH --> D1[Docker build + runtime smoke + non-root]
     GH --> V1[Trivy security scan]
     Q1 --> G[CI / Required gate]
     T1 --> G
@@ -29,7 +29,7 @@ flowchart LR
     Q2 --> T2[Pytest]
     T2 --> B2[Docker build]
     B2 --> S2[Container smoke]
-    S2 --> H[Docker Hub push]
+    S2 --> H[Docker Hub push\nmain only]
     H --> N[Telegram notification]
 ```
 
@@ -38,8 +38,8 @@ flowchart LR
 | Gate | Что подтверждает |
 | --- | --- |
 | `Quality / Flake8` | Python-код и тесты проходят статическую проверку |
-| `Tests / Pytest` | наблюдаемое поведение приложения соответствует контракту |
-| `Docker / Build + runtime smoke` | image реально собирается, контейнер стартует и возвращает ожидаемый результат |
+| `Tests / Pytest` | наблюдаемое поведение приложения соответствует контракту; JUnit XML сохраняется как CI evidence |
+| `Docker / Build + runtime smoke` | image реально собирается, контейнер стартует, возвращает ожидаемый результат и объявляет non-root runtime user |
 | `Security / Trivy container scan` | в образе нет исправляемых `CRITICAL` уязвимостей по политике проекта |
 | `CI / Required gate` | все обязательные сигналы завершились успешно |
 
@@ -49,7 +49,7 @@ Unit test и container smoke разделены намеренно: успешн
 
 Проект стандартизирован на **Python 3.12** для GitHub Actions и Docker runtime. Jenkins требует **Python 3.12+** и fail-fast завершает pipeline, если агент не соответствует baseline.
 
-Docker container запускает приложение не от `root`. CI устанавливает только зафиксированные зависимости из `requirements-dev.txt`, без неявного обновления tooling при каждом запуске.
+Docker container запускает приложение не от `root`; GitHub Actions проверяет это отдельным runtime-policy assertion через metadata собранного image. CI устанавливает только зафиксированные зависимости из `requirements-dev.txt`, без неявного обновления tooling при каждом запуске.
 
 ## GitHub Actions CI
 
@@ -62,6 +62,8 @@ Docker container запускает приложение не от `root`. CI у
 - ручной `workflow_dispatch`.
 
 Flake8, Pytest, Docker runtime validation и Trivy работают независимыми jobs. Финальный `CI / Required gate` агрегирует их результаты и предоставляет один стабильный сигнал для branch protection. При этом отдельные jobs остаются видимыми для диагностики причины failure.
+
+Pytest формирует JUnit XML, который сохраняется как GitHub Actions artifact на 14 дней. Это отделяет доказательство фактического test execution от консольного лога и делает результат доступным для последующего разбора.
 
 Workflow использует read-only `contents` permission, явные timeouts и concurrency policy. Устаревшие PR-runs могут отменяться, а post-merge run на `main` доводится до конца, чтобы сохранять подтверждение состояния основной ветки.
 
@@ -96,12 +98,13 @@ TELEGRAM_CHAT_ID
 5. Pytest;
 6. Docker build;
 7. container runtime smoke;
-8. авторизацию в Docker Hub через Jenkins Credentials;
-9. публикацию versioned image;
-10. cleanup локального image;
-11. Telegram notification о результате.
+8. для `main` — авторизацию в Docker Hub через Jenkins Credentials и публикацию versioned image;
+9. cleanup локального image;
+10. Telegram notification о результате и publish policy.
 
-Pipeline отключает неявный Declarative checkout, потому что checkout контролируется отдельной stage. Builds сериализованы, чтобы избежать конфликтов общего Docker/credential state на агенте, а глобальный timeout не позволяет зависшему delivery занимать executor бесконечно.
+Validation stages выполняются независимо от source branch. Docker Hub publish использует **fail-closed branch policy**: stage разрешена только при `BRANCH_NAME=main` или `GIT_BRANCH=origin/main`; неизвестная или feature-ветка image не публикует.
+
+Pipeline отключает неявный Declarative checkout, потому что checkout контролируется отдельной stage. Builds сериализованы, чтобы избежать конфликтов общего Docker/credential state на агенте, история ограничена последними 20 builds, а глобальный timeout не позволяет зависшему delivery занимать executor бесконечно.
 
 Jenkins credentials ожидаются под ID:
 
@@ -121,6 +124,7 @@ Telegram failure в Jenkins не скрывает результат линти�
 | Delivery automation | Jenkins Declarative Pipeline |
 | Язык | Python 3.12 |
 | Tests | Pytest 9 |
+| Test evidence | JUnit XML artifacts |
 | Static analysis | Flake8 |
 | Container security | Trivy |
 | Containerization | Docker |
@@ -153,7 +157,7 @@ my-docker-project/
 
 Приложение намеренно небольшое. Unit test проверяет observable contract функции `get_message()`.
 
-Цель проекта — не искусственно увеличивать количество тестов, а продемонстрировать **качество pipeline design**: статический анализ, test gate, Docker packaging, runtime verification, container security, controlled delivery, cleanup и observability.
+Цель проекта — не искусственно увеличивать количество тестов, а продемонстрировать **качество pipeline design**: статический анализ, test gate, сохраняемое test evidence, Docker packaging, runtime verification, non-root policy, container security, controlled delivery, cleanup и observability.
 
 ## Dependency management
 
@@ -191,6 +195,7 @@ Hello from Docker! The application is running successfully.
 
 - secrets и пароли не хранятся в репозитории;
 - Trivy — отдельный blocking signal для fixable `CRITICAL` container vulnerabilities;
+- Docker image публикуется Jenkins только из подтверждённой `main` branch;
 - quality/test/build/runtime/security/publish failures не маскируются notification или cleanup-логикой;
 - notification transport — вспомогательный observability signal;
 - политика раскрытия security-проблем описана в `SECURITY.md`;
@@ -198,7 +203,7 @@ Hello from Docker! The application is running successfully.
 
 ## Почему это QA-проект
 
-Здесь проверяется не только код функции. Проект демонстрирует инженерный контроль качества delivery chain: независимые quality gates, deterministic aggregate result, runtime smoke после сборки контейнера, security scanning, dependency maintenance, failure semantics и диагностируемые уведомления.
+Здесь проверяется не только код функции. Проект демонстрирует инженерный контроль качества delivery chain: независимые quality gates, deterministic aggregate result, retained test evidence, runtime smoke после сборки контейнера, non-root runtime policy, security scanning, dependency maintenance, controlled main-only publishing, failure semantics и диагностируемые уведомления.
 
 ---
 
