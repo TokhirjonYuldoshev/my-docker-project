@@ -14,10 +14,15 @@ pipeline {
             }
         }
 
+        stage('Verify Python Runtime') {
+            steps {
+                bat 'python -c "import sys; print(sys.version); assert sys.version_info >= (3, 12)"'
+            }
+        }
+
         stage('Install CI Dependencies') {
             steps {
-                bat 'python -m pip install --upgrade pip'
-                bat 'python -m pip install -r requirements-dev.txt'
+                bat 'python -m pip install --disable-pip-version-check -r requirements-dev.txt'
             }
         }
 
