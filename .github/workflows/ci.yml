@@ -57,7 +57,7 @@ jobs:
         run: python -m pytest -q
 
   docker:
-    name: Docker / Build
+    name: Docker / Build + runtime smoke
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -66,3 +66,11 @@ jobs:
 
       - name: Build Docker image
         run: docker build --tag qa-ci-smoke:${{ github.sha }} .
+
+      - name: Run container smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected='Hello from Docker! The application is running successfully.'
+          actual="$(docker run --rm qa-ci-smoke:${{ github.sha }})"
+          test "$actual" = "$expected"
