@@ -1,4 +1,5 @@
 name: Python & Docker CI
+run-name: "Python & Docker CI • ${{ github.head_ref || github.ref_name }} • ${{ github.actor }}"
 
 on:
   pull_request:
@@ -12,6 +13,10 @@ permissions:
 concurrency:
   group: python-docker-ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
   quality:
@@ -68,7 +73,6 @@ jobs:
         run: docker build --tag qa-ci-smoke:${{ github.sha }} .
 
       - name: Run container smoke test
-        shell: bash
         run: |
           set -euo pipefail
           expected='Hello from Docker! The application is running successfully.'
@@ -111,16 +115,48 @@ jobs:
           TESTS_RESULT: ${{ needs.tests.result }}
           DOCKER_RESULT: ${{ needs.docker.result }}
           SECURITY_RESULT: ${{ needs.security.result }}
-        shell: bash
         run: |
-          {
-            echo '## Python & Docker CI'
-            echo
-            echo "- Flake8: **${QUALITY_RESULT}**"
-            echo "- Pytest: **${TESTS_RESULT}**"
-            echo "- Docker build + runtime smoke: **${DOCKER_RESULT}**"
-            echo "- Trivy critical-vulnerability gate: **${SECURITY_RESULT}**"
-          } >> "$GITHUB_STEP_SUMMARY"
+          status_ru() {
+            case "$1" in
+              success) echo "✅ Успешно" ;;
+              failure) echo "❌ Ошибка" ;;
+              cancelled) echo "⏹️ Отменено" ;;
+              skipped) echo "⏭️ Пропущено" ;;
+              *) echo "❔ ${1:-unknown}" ;;
+            esac
+          }
+
+          if [[ "$QUALITY_RESULT" == success && "$TESTS_RESULT" == success && "$DOCKER_RESULT" == success && "$SECURITY_RESULT" == success ]]; then
+            OVERALL="✅ ВСЕ QUALITY GATES ПРОЙДЕНЫ"
+            NOTE="Код, тесты, Docker runtime и container security подтверждены."
+          else
+            OVERALL="❌ ЕСТЬ ОШИБКИ В QUALITY GATES"
+            NOTE="Один или несколько обязательных сигналов требуют разбора."
+          fi
+
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          BRANCH="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          # Python & Docker CI — итог
+          _QA/DevOps portfolio pipeline • GitHub Actions_
+
+          ## ${OVERALL}
+          > ${NOTE}
+
+          | Проверка | Статус |
+          | --- | --- |
+          | Flake8 | $(status_ru "$QUALITY_RESULT") |
+          | Pytest | $(status_ru "$TESTS_RESULT") |
+          | Docker build + runtime smoke | $(status_ru "$DOCKER_RESULT") |
+          | Trivy / fixable CRITICAL | $(status_ru "$SECURITY_RESULT") |
+
+          **Контекст:** `${GITHUB_REPOSITORY}` · `${BRANCH}` · commit `${SHORT_SHA}` · `${GITHUB_EVENT_NAME}`  
+          **Run:** [открыть GitHub Actions](${RUN_URL})
+
+          > ✈️ Telegram-уведомление после push в `main` и ручного запуска — отдельный observability signal и не подменяет CI result.
+          EOF
 
       - name: Enforce aggregate result
         env:
@@ -128,7 +164,6 @@ jobs:
           TESTS_RESULT: ${{ needs.tests.result }}
           DOCKER_RESULT: ${{ needs.docker.result }}
           SECURITY_RESULT: ${{ needs.security.result }}
-        shell: bash
         run: |
           set -euo pipefail
           for result in "$QUALITY_RESULT" "$TESTS_RESULT" "$DOCKER_RESULT" "$SECURITY_RESULT"; do
@@ -137,3 +172,112 @@ jobs:
               exit 1
             fi
           done
+
+  notify:
+    name: Telegram Notification
+    if: ${{ always() && github.event_name != 'pull_request' }}
+    needs: [quality, tests, docker, security, gate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Send CI result to Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          TESTS_RESULT: ${{ needs.tests.result }}
+          DOCKER_RESULT: ${{ needs.docker.result }}
+          SECURITY_RESULT: ${{ needs.security.result }}
+          GATE_RESULT: ${{ needs.gate.result }}
+        run: |
+          if [[ -z "$TELEGRAM_BOT_TOKEN" || -z "$TELEGRAM_CHAT_ID" ]]; then
+            echo "::notice::Telegram secrets are not configured; notification skipped."
+            {
+              echo "## ✈️ Telegram"
+              echo
+              echo "ℹ️ Уведомление пропущено: добавьте repository secrets TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          status_ru() {
+            case "$1" in
+              success) echo "✅ Успешно" ;;
+              failure) echo "❌ Ошибка" ;;
+              cancelled) echo "⏹️ Отменено" ;;
+              skipped) echo "⏭️ Пропущено" ;;
+              *) echo "❔ ${1:-unknown}" ;;
+            esac
+          }
+
+          event_ru() {
+            case "$1" in
+              push) echo "Push в main" ;;
+              workflow_dispatch) echo "Ручной запуск" ;;
+              schedule) echo "Запуск по расписанию" ;;
+              *) echo "$1" ;;
+            esac
+          }
+
+          escape_html() {
+            local text="$1"
+            text="${text//&/&amp;}"
+            text="${text//</&lt;}"
+            text="${text//>/&gt;}"
+            printf '%s' "$text"
+          }
+
+          if [[ "$GATE_RESULT" == success ]]; then
+            HEADER="✅ <b>Python &amp; Docker CI — УСПЕХ</b>"
+          else
+            HEADER="❌ <b>Python &amp; Docker CI — ТРЕБУЕТ ВНИМАНИЯ</b>"
+          fi
+
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          BRANCH="$(escape_html "${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}")"
+          REPO="$(escape_html "$GITHUB_REPOSITORY")"
+          ACTOR="$(escape_html "$GITHUB_ACTOR")"
+          EVENT="$(escape_html "$(event_ru "$GITHUB_EVENT_NAME")")"
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+
+          MESSAGE="${HEADER}"
+          MESSAGE+=$'\n\n'"📦 <b>Репозиторий:</b> <code>${REPO}</code>"
+          MESSAGE+=$'\n'"🌿 <b>Ветка:</b> <code>${BRANCH}</code>"
+          MESSAGE+=$'\n'"🔄 <b>Событие:</b> ${EVENT}"
+          MESSAGE+=$'\n'"👤 <b>Автор:</b> <code>${ACTOR}</code>"
+          MESSAGE+=$'\n'"🔖 <b>Commit:</b> <code>${SHORT_SHA}</code>"
+          MESSAGE+=$'\n\n'"🧪 <b>Quality gates</b>"
+          MESSAGE+=$'\n'"• Flake8: $(status_ru "$QUALITY_RESULT")"
+          MESSAGE+=$'\n'"• Pytest: $(status_ru "$TESTS_RESULT")"
+          MESSAGE+=$'\n'"• Docker runtime smoke: $(status_ru "$DOCKER_RESULT")"
+          MESSAGE+=$'\n'"• Trivy security: $(status_ru "$SECURITY_RESULT")"
+          MESSAGE+=$'\n'"• Required gate: $(status_ru "$GATE_RESULT")"
+          MESSAGE+=$'\n\n'"🔗 <a href=\"${RUN_URL}\">Открыть GitHub Actions run #${GITHUB_RUN_NUMBER}</a>"
+
+          HTTP_CODE="$(curl --silent --show-error \
+            --connect-timeout 10 \
+            --max-time 20 \
+            --output /tmp/telegram-response.json \
+            --write-out '%{http_code}' \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "parse_mode=HTML" \
+            --data-urlencode "disable_web_page_preview=true" \
+            --data-urlencode "text=${MESSAGE}" \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" || true)"
+
+          if [[ "$HTTP_CODE" != "200" ]] || ! jq -e '.ok == true' /tmp/telegram-response.json >/dev/null 2>&1; then
+            echo "::warning::Telegram sendMessage failed (HTTP ${HTTP_CODE:-transport-error}). CI result is preserved."
+            {
+              echo "## ✈️ Telegram"
+              echo
+              echo "⚠️ CI завершён, но Telegram transport не подтвердил доставку."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          {
+            echo "## ✈️ Telegram"
+            echo
+            echo "✅ Итог CI отправлен в Telegram."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "Telegram notification sent."

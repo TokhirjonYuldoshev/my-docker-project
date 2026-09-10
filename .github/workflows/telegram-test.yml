@@ -1,0 +1,92 @@
+name: Telegram Notification Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  telegram:
+    name: Telegram / validate and send
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate Telegram secrets
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          missing=0
+          [[ -n "$TELEGRAM_BOT_TOKEN" ]] || { echo "::error::Repository secret TELEGRAM_BOT_TOKEN is not configured."; missing=1; }
+          [[ -n "$TELEGRAM_CHAT_ID" ]] || { echo "::error::Repository secret TELEGRAM_CHAT_ID is not configured."; missing=1; }
+          if [[ "$missing" -ne 0 ]]; then
+            {
+              echo "## ✈️ Telegram diagnostics"
+              echo
+              echo "❌ Не настроены обязательные repository secrets."
+              echo "Добавьте TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID, затем повторите ручной запуск."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - name: Validate bot token
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: |
+          HTTP_CODE="$(curl --silent --show-error --connect-timeout 10 --max-time 20 \
+            --output /tmp/getme.json --write-out '%{http_code}' \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe")"
+          if [[ "$HTTP_CODE" != 200 ]] || ! jq -e '.ok == true' /tmp/getme.json >/dev/null; then
+            echo "::error::Telegram Bot API rejected TELEGRAM_BOT_TOKEN (HTTP ${HTTP_CODE})."
+            exit 1
+          fi
+
+      - name: Validate target chat
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          HTTP_CODE="$(curl --silent --show-error --connect-timeout 10 --max-time 20 \
+            --output /tmp/getchat.json --write-out '%{http_code}' \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getChat")"
+          if [[ "$HTTP_CODE" != 200 ]] || ! jq -e '.ok == true' /tmp/getchat.json >/dev/null; then
+            echo "::error::Telegram Bot API cannot access TELEGRAM_CHAT_ID (HTTP ${HTTP_CODE})."
+            exit 1
+          fi
+
+      - name: Send diagnostic message
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          MESSAGE="✅ <b>Telegram diagnostics — УСПЕХ</b>"
+          MESSAGE+=$'\n\n'"📦 <b>Репозиторий:</b> <code>${GITHUB_REPOSITORY}</code>"
+          MESSAGE+=$'\n'"🧪 Проверены bot token, target chat и sendMessage."
+          MESSAGE+=$'\n'"🔗 <a href=\"${RUN_URL}\">Открыть diagnostic run #${GITHUB_RUN_NUMBER}</a>"
+
+          HTTP_CODE="$(curl --silent --show-error --connect-timeout 10 --max-time 20 \
+            --output /tmp/send.json --write-out '%{http_code}' \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "parse_mode=HTML" \
+            --data-urlencode "disable_web_page_preview=true" \
+            --data-urlencode "text=${MESSAGE}" \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage")"
+          if [[ "$HTTP_CODE" != 200 ]] || ! jq -e '.ok == true' /tmp/send.json >/dev/null; then
+            echo "::error::Telegram sendMessage failed (HTTP ${HTTP_CODE})."
+            exit 1
+          fi
+
+          {
+            echo "## ✈️ Telegram diagnostics"
+            echo
+            echo "✅ Bot token валиден."
+            echo "✅ Target chat доступен."
+            echo "✅ Тестовое сообщение принято Telegram Bot API."
+          } >> "$GITHUB_STEP_SUMMARY"
