@@ -4,7 +4,7 @@
 
 A compact QA/DevOps portfolio project that demonstrates two complementary automation paths:
 
-- **GitHub Actions CI** validates every pull request and push with Flake8, Pytest, Docker build and a container runtime smoke test;
+- **GitHub Actions CI** validates every pull request and push with Flake8, Pytest, Docker build, container runtime smoke and a blocking Trivy container-security gate;
 - **Jenkins delivery pipeline** repeats the quality gates, builds and smoke-tests the image, publishes it to Docker Hub and reports the build result to Telegram.
 
 ## Automation architecture
@@ -15,9 +15,11 @@ flowchart LR
     GH --> Q1[Flake8]
     GH --> T1[Pytest]
     GH --> D1[Docker build + runtime smoke]
+    GH --> V1[Trivy critical-vulnerability scan]
     Q1 --> G[CI / Required gate]
     T1 --> G
     D1 --> G
+    V1 --> G
 
     C --> J[Jenkins]
     J --> Q2[Flake8]
@@ -38,9 +40,10 @@ A change is considered technically healthy only when these independent checks pa
 | Pytest | The observable application behavior matches the expected contract |
 | Docker build | The application can be packaged from the repository state |
 | Container runtime smoke | The built image actually starts and returns the expected application output |
+| Trivy container scan | The built image has no fixable CRITICAL vulnerabilities reported by the pinned scanner |
 | CI / Required gate | All required validation jobs completed successfully |
 
-The container smoke test is deliberately separate from the unit test: a successful unit test does not prove that packaging and container execution are correct.
+The container smoke test is deliberately separate from the unit test: a successful unit test does not prove that packaging and container execution are correct. The security scan is also independent from functional validation, so vulnerability risk is visible as its own merge signal.
 
 ## Runtime baseline
 
@@ -58,7 +61,9 @@ Triggers:
 - pushes to `main`;
 - manual `workflow_dispatch`.
 
-Flake8, Pytest and Docker validation run as independent jobs. An `always()` aggregate job publishes their outcomes to the GitHub Actions summary and exposes the stable **`CI / Required gate`** check, which fails whenever any required dependency does not succeed. This gives branch protection a single deterministic merge gate without hiding the individual signals.
+Flake8, Pytest, Docker runtime validation and Trivy scanning run as independent jobs. An `always()` aggregate job publishes their outcomes to the GitHub Actions summary and exposes the stable **`CI / Required gate`** check, which fails whenever any required dependency does not succeed. This gives branch protection a single deterministic merge gate without hiding the individual signals.
+
+The Trivy action is pinned to an immutable commit corresponding to `v0.36.0`. The blocking policy is intentionally narrow and actionable: it fails on **fixable CRITICAL** image vulnerabilities, while avoiding false urgency from vulnerabilities for which no upstream fix exists.
 
 The workflow uses read-only repository permissions, per-ref concurrency and explicit job timeouts. Superseded pull-request runs may be cancelled, while `main` push validation is allowed to finish so post-merge evidence is retained. CI does **not** publish images and does not require Docker Hub or Telegram credentials.
 
@@ -91,6 +96,7 @@ Docker cleanup is attempted even when an earlier delivery stage fails. Telegram 
 | Language | Python 3.12 |
 | Tests | Pytest 9 |
 | Static analysis | Flake8 |
+| Container security | Trivy |
 | Containerization | Docker |
 | Registry | Docker Hub |
 | Notifications | Telegram Bot API |
@@ -117,7 +123,7 @@ my-docker-project/
 
 The application is intentionally small. The automated unit test verifies the observable message returned by `get_message()`.
 
-This repository demonstrates **quality-gate integration and delivery mechanics**, not a large product test suite. The focus is on making linting, tests, container validation, image publication, cleanup and notifications explicit and repeatable.
+This repository demonstrates **quality-gate integration and delivery mechanics**, not a large product test suite. The focus is on making linting, tests, container validation, security scanning, image publication, cleanup and notifications explicit and repeatable.
 
 ## Dependency management
 
@@ -129,7 +135,7 @@ python -m flake8 app.py test_app.py --count --statistics
 python -m pytest -q
 ```
 
-Dependabot checks **Python dependencies**, **GitHub Actions** and the **Docker base image** weekly. Dependency updates are proposed as pull requests rather than auto-merged, so they must pass the same Flake8, Pytest, Docker build and runtime-smoke gates as normal changes. The Docker runtime intentionally stays on the **Python 3.12** line; cross-minor/major runtime upgrades are handled as explicit engineering changes so CI, Docker and Jenkins remain aligned.
+Dependabot checks **Python dependencies**, **GitHub Actions** and the **Docker base image** weekly. Dependency updates are proposed as pull requests rather than auto-merged, so they must pass the same Flake8, Pytest, Docker runtime and container-security gates as normal changes. The Docker runtime intentionally stays on the **Python 3.12** line; cross-minor/major runtime upgrades are handled as explicit engineering changes so CI, Docker and Jenkins remain aligned.
 
 ## Docker
 
@@ -165,7 +171,7 @@ telegram-token
 telegram-chat-id
 ```
 
-A quality, test, build, runtime-smoke or publish failure fails the Jenkins build. Cleanup and notification delivery are auxiliary operations and do not hide the original pipeline result.
+A quality, test, build, runtime-smoke, security or publish failure fails the corresponding delivery/validation path. Cleanup and notification delivery are auxiliary operations and do not hide the original pipeline result.
 
 ---
 
