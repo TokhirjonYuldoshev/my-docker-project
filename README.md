@@ -60,7 +60,7 @@ Triggers:
 
 Flake8, Pytest and Docker validation run as independent jobs. An `always()` aggregate job publishes their outcomes to the GitHub Actions summary and exposes the stable **`CI / Required gate`** check, which fails whenever any required dependency does not succeed. This gives branch protection a single deterministic merge gate without hiding the individual signals.
 
-The workflow uses read-only repository permissions, per-ref concurrency and explicit job timeouts. CI does **not** publish images and does not require Docker Hub or Telegram credentials.
+The workflow uses read-only repository permissions, per-ref concurrency and explicit job timeouts. Superseded pull-request runs may be cancelled, while `main` push validation is allowed to finish so post-merge evidence is retained. CI does **not** publish images and does not require Docker Hub or Telegram credentials.
 
 ## Jenkins delivery pipeline
 
@@ -77,6 +77,8 @@ The Jenkins Declarative Pipeline executes:
 9. publish the versioned image;
 10. clean up the local image;
 11. report the result to Telegram.
+
+Jenkins disables the Declarative Pipeline's implicit checkout because the pipeline owns an explicit checkout stage, serializes builds to avoid shared Docker/credential state collisions on the agent, and enforces a 30-minute global timeout so a stalled delivery cannot occupy the executor indefinitely.
 
 Docker cleanup is attempted even when an earlier delivery stage fails. Telegram is treated as an **observability channel**, not as the source of truth for build health: a notification transport failure produces a warning but does not turn an otherwise healthy pipeline into a false product failure.
 
