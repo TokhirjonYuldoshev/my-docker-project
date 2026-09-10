@@ -8,6 +8,13 @@ updates:
       time: "06:00"
       timezone: "Europe/Minsk"
     open-pull-requests-limit: 3
+    groups:
+      python-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
     commit-message:
       prefix: deps
 
@@ -19,6 +26,13 @@ updates:
       time: "06:15"
       timezone: "Europe/Minsk"
     open-pull-requests-limit: 3
+    groups:
+      actions-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
     commit-message:
       prefix: deps
 
