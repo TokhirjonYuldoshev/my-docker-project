@@ -13,9 +13,11 @@ A compact QA/DevOps portfolio project that demonstrates two complementary automa
 flowchart LR
     C[Code change] --> GH[GitHub Actions CI]
     GH --> Q1[Flake8]
-    Q1 --> T1[Pytest]
-    T1 --> B1[Docker build]
-    B1 --> S1[Container smoke]
+    GH --> T1[Pytest]
+    GH --> D1[Docker build + runtime smoke]
+    Q1 --> G[CI / Required gate]
+    T1 --> G
+    D1 --> G
 
     C --> J[Jenkins]
     J --> Q2[Flake8]
@@ -36,12 +38,13 @@ A change is considered technically healthy only when these independent checks pa
 | Pytest | The observable application behavior matches the expected contract |
 | Docker build | The application can be packaged from the repository state |
 | Container runtime smoke | The built image actually starts and returns the expected application output |
+| CI / Required gate | All required validation jobs completed successfully |
 
 The container smoke test is deliberately separate from the unit test: a successful unit test does not prove that packaging and container execution are correct.
 
 ## Runtime baseline
 
-The project is standardized on **Python 3.12** for GitHub Actions, the Docker runtime and Jenkins execution. Jenkins agents fail fast when the available `python` executable is older than 3.12.
+GitHub Actions and the Docker runtime are standardized on **Python 3.12**. Jenkins requires **Python 3.12 or newer** and fails fast when the available `python` executable is older than that baseline.
 
 The container runs the application as a non-root user. CI dependency installation uses the checked-in pinned development requirements instead of upgrading tooling implicitly during every run.
 
@@ -54,6 +57,8 @@ Triggers:
 - pull requests;
 - pushes to `main`;
 - manual `workflow_dispatch`.
+
+Flake8, Pytest and Docker validation run as independent jobs. An `always()` aggregate job publishes their outcomes to the GitHub Actions summary and exposes the stable **`CI / Required gate`** check, which fails whenever any required dependency does not succeed. This gives branch protection a single deterministic merge gate without hiding the individual signals.
 
 The workflow uses read-only repository permissions, per-ref concurrency and explicit job timeouts. CI does **not** publish images and does not require Docker Hub or Telegram credentials.
 
