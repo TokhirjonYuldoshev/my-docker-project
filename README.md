@@ -39,6 +39,12 @@ A change is considered technically healthy only when these independent checks pa
 
 The container smoke test is deliberately separate from the unit test: a successful unit test does not prove that packaging and container execution are correct.
 
+## Runtime baseline
+
+The project is standardized on **Python 3.12** for GitHub Actions, the Docker runtime and Jenkins execution. Jenkins agents fail fast when the available `python` executable is older than 3.12.
+
+The container runs the application as a non-root user. CI dependency installation uses the checked-in pinned development requirements instead of upgrading tooling implicitly during every run.
+
 ## GitHub Actions CI
 
 Workflow: `.github/workflows/ci.yml`
@@ -56,15 +62,16 @@ The workflow uses read-only repository permissions, per-ref concurrency and expl
 The Jenkins Declarative Pipeline executes:
 
 1. checkout source code;
-2. install pinned development dependencies;
-3. run Flake8;
-4. run Pytest;
-5. build the Docker image;
-6. run the container smoke test;
-7. authenticate to Docker Hub through Jenkins Credentials;
-8. publish the versioned image;
-9. clean up the local image;
-10. report the result to Telegram.
+2. verify the Python 3.12+ runtime;
+3. install pinned development dependencies;
+4. run Flake8;
+5. run Pytest;
+6. build the Docker image;
+7. run the container smoke test;
+8. authenticate to Docker Hub through Jenkins Credentials;
+9. publish the versioned image;
+10. clean up the local image;
+11. report the result to Telegram.
 
 Docker cleanup is attempted even when an earlier delivery stage fails. Telegram is treated as an **observability channel**, not as the source of truth for build health: a notification transport failure produces a warning but does not turn an otherwise healthy pipeline into a false product failure.
 
@@ -74,8 +81,8 @@ Docker cleanup is attempted even when an earlier delivery stage fails. Telegram 
 | --- | --- |
 | CI validation | GitHub Actions |
 | Delivery automation | Jenkins Declarative Pipeline |
-| Language | Python 3.9 |
-| Tests | Pytest |
+| Language | Python 3.12 |
+| Tests | Pytest 9 |
 | Static analysis | Flake8 |
 | Containerization | Docker |
 | Registry | Docker Hub |
@@ -110,7 +117,7 @@ This repository demonstrates **quality-gate integration and delivery mechanics**
 Development tools are pinned in `requirements-dev.txt`:
 
 ```bash
-python -m pip install -r requirements-dev.txt
+python -m pip install --disable-pip-version-check -r requirements-dev.txt
 python -m flake8 app.py test_app.py --count --statistics
 python -m pytest -q
 ```
