@@ -137,13 +137,17 @@ Telegram failure в Jenkins не скрывает результат линти�
 ```text
 my-docker-project/
 ├── .github/
+│   ├── CODEOWNERS
 │   ├── dependabot.yml
 │   ├── pull_request_template.md
 │   └── workflows/
 │       ├── ci.yml
 │       └── telegram-test.yml
 ├── .dockerignore
+├── .gitattributes
 ├── .gitignore
+├── .python-version
+├── CONTRIBUTING.md
 ├── Dockerfile
 ├── Jenkinsfile
 ├── SECURITY.md
@@ -152,6 +156,8 @@ my-docker-project/
 ├── requirements-dev.txt
 └── README.md
 ```
+
+`CONTRIBUTING.md` фиксирует change/validation policy, `SECURITY.md` — security boundaries и работу с секретами, а `CODEOWNERS` делает ownership критичных CI/CD-файлов явным.
 
 ## Test scope
 
@@ -199,6 +205,8 @@ Hello from Docker! The application is running successfully.
 - quality/test/build/runtime/security/publish failures не маскируются notification или cleanup-логикой;
 - notification transport — вспомогательный observability signal;
 - политика раскрытия security-проблем описана в `SECURITY.md`;
+- contribution/validation policy описана в `CONTRIBUTING.md`;
+- ownership ключевых automation-файлов зафиксирован в `.github/CODEOWNERS`;
 - PR template заставляет явно оценивать CI/runtime/security risk изменения.
 
 ## Почему это QA-проект
