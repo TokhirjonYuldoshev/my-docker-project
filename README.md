@@ -122,7 +122,7 @@ python -m flake8 app.py test_app.py --count --statistics
 python -m pytest -q
 ```
 
-Dependabot checks **Python dependencies** and **GitHub Actions** weekly. Dependency updates are proposed as pull requests rather than auto-merged, so they must pass the same Flake8, Pytest, Docker build and runtime-smoke gates as normal changes.
+Dependabot checks **Python dependencies**, **GitHub Actions** and the **Docker base image** weekly. Dependency updates are proposed as pull requests rather than auto-merged, so they must pass the same Flake8, Pytest, Docker build and runtime-smoke gates as normal changes.
 
 ## Docker
 
