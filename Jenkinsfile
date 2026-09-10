@@ -85,38 +85,42 @@ pipeline {
                     returnStatus: true,
                     script: 'docker rmi %DOCKER_NAMESPACE%/%IMAGE_NAME%:%IMAGE_TAG%'
                 )
-            }
-        }
 
-        success {
-            script {
+                def buildResult = currentBuild.currentResult ?: 'UNKNOWN'
+                def telegramHeader = buildResult == 'SUCCESS' ? '✅ Jenkins CI/CD — УСПЕХ' : '🚨 Jenkins CI/CD — ТРЕБУЕТ ВНИМАНИЯ'
+
                 withCredentials([
                     string(credentialsId: 'telegram-token', variable: 'BOT_TOKEN'),
                     string(credentialsId: 'telegram-chat-id', variable: 'CHAT_ID')
                 ]) {
-                    def notifyStatus = bat(
-                        returnStatus: true,
-                        script: 'curl --fail --silent --show-error -X POST "https://api.telegram.org/bot%BOT_TOKEN%/sendMessage" -d "chat_id=%CHAT_ID%" --data-urlencode "text=SUCCESS: Jenkins build #%BUILD_NUMBER% published %DOCKER_NAMESPACE%/%IMAGE_NAME%:%IMAGE_TAG%"'
-                    )
-                    if (notifyStatus != 0) {
-                        echo 'WARNING: Telegram success notification could not be delivered.'
-                    }
-                }
-            }
-        }
+                    withEnv([
+                        "TG_BUILD_RESULT=${buildResult}",
+                        "TG_HEADER=${telegramHeader}"
+                    ]) {
+                        def notifyStatus = bat(
+                            returnStatus: true,
+                            script: '''@echo off
+chcp 65001 >nul
+set "TG_MESSAGE_FILE=%TEMP%\\jenkins-telegram-%BUILD_NUMBER%.txt"
+(
+  echo %TG_HEADER%
+  echo.
+  echo 📦 Image: %DOCKER_NAMESPACE%/%IMAGE_NAME%:%IMAGE_TAG%
+  echo 🔄 Build: #%BUILD_NUMBER%
+  echo 📊 Result: %TG_BUILD_RESULT%
+  echo 🧪 Gates: Flake8 ^> Pytest ^> Docker build ^> Runtime smoke ^> Docker Hub
+  echo 🔗 Jenkins: %BUILD_URL%
+)>"%TG_MESSAGE_FILE%"
 
-        failure {
-            script {
-                withCredentials([
-                    string(credentialsId: 'telegram-token', variable: 'BOT_TOKEN'),
-                    string(credentialsId: 'telegram-chat-id', variable: 'CHAT_ID')
-                ]) {
-                    def notifyStatus = bat(
-                        returnStatus: true,
-                        script: 'curl --fail --silent --show-error -X POST "https://api.telegram.org/bot%BOT_TOKEN%/sendMessage" -d "chat_id=%CHAT_ID%" --data-urlencode "text=FAILED: Jenkins build #%BUILD_NUMBER%. Check Jenkins console output."'
-                    )
-                    if (notifyStatus != 0) {
-                        echo 'WARNING: Telegram failure notification could not be delivered.'
+curl --fail --silent --show-error --connect-timeout 10 --max-time 20 -X POST "https://api.telegram.org/bot%BOT_TOKEN%/sendMessage" -d "chat_id=%CHAT_ID%" --data-urlencode "disable_web_page_preview=true" --data-urlencode "text@%TG_MESSAGE_FILE%"
+set "TG_EXIT=%ERRORLEVEL%"
+del /q "%TG_MESSAGE_FILE%" >nul 2>&1
+exit /b %TG_EXIT%
+'''
+                        )
+                        if (notifyStatus != 0) {
+                            echo "WARNING: Telegram notification could not be delivered. Jenkins result remains ${buildResult}."
+                        }
                     }
                 }
             }
