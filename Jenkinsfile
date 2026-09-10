@@ -4,6 +4,7 @@ pipeline {
     options {
         skipDefaultCheckout(true)
         disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '20'))
         timeout(time: 30, unit: 'MINUTES')
     }
 
@@ -57,6 +58,11 @@ pipeline {
         }
 
         stage('Push Docker Image') {
+            when {
+                expression {
+                    return env.BRANCH_NAME == 'main' || env.GIT_BRANCH == 'origin/main'
+                }
+            }
             steps {
                 script {
                     withCredentials([
@@ -108,7 +114,8 @@ set "TG_MESSAGE_FILE=%TEMP%\\jenkins-telegram-%BUILD_NUMBER%.txt"
   echo 📦 Image: %DOCKER_NAMESPACE%/%IMAGE_NAME%:%IMAGE_TAG%
   echo 🔄 Build: #%BUILD_NUMBER%
   echo 📊 Result: %TG_BUILD_RESULT%
-  echo 🧪 Gates: Flake8 ^> Pytest ^> Docker build ^> Runtime smoke ^> Docker Hub
+  echo 🧪 Gates: Flake8 ^> Pytest ^> Docker build ^> Runtime smoke
+  echo 📤 Publish policy: Docker Hub only from main
   echo 🔗 Jenkins: %BUILD_URL%
 )>"%TG_MESSAGE_FILE%"
 
