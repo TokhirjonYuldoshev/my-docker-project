@@ -59,7 +59,16 @@ jobs:
         run: python -m pip install --disable-pip-version-check -r requirements-dev.txt
 
       - name: Run Pytest
-        run: python -m pytest -q
+        run: python -m pytest -q --junitxml=reports/pytest.xml
+
+      - name: Upload Pytest JUnit evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: pytest-junit-${{ github.run_id }}
+          path: reports/pytest.xml
+          if-no-files-found: warn
+          retention-days: 14
 
   docker:
     name: Docker / Build + runtime smoke
@@ -78,6 +87,16 @@ jobs:
           expected='Hello from Docker! The application is running successfully.'
           actual="$(docker run --rm qa-ci-smoke:${{ github.sha }})"
           test "$actual" = "$expected"
+
+      - name: Verify non-root container configuration
+        run: |
+          set -euo pipefail
+          configured_user="$(docker image inspect qa-ci-smoke:${{ github.sha }} --format '{{.Config.User}}')"
+          if [[ -z "$configured_user" || "$configured_user" == '0' || "$configured_user" == 'root' ]]; then
+            echo "Container must declare a non-root runtime user; got: ${configured_user:-<empty>}" >&2
+            exit 1
+          fi
+          echo "Verified non-root container user: $configured_user"
 
   security:
     name: Security / Trivy container scan
@@ -148,8 +167,8 @@ jobs:
           | Проверка | Статус |
           | --- | --- |
           | Flake8 | $(status_ru "$QUALITY_RESULT") |
-          | Pytest | $(status_ru "$TESTS_RESULT") |
-          | Docker build + runtime smoke | $(status_ru "$DOCKER_RESULT") |
+          | Pytest + JUnit evidence | $(status_ru "$TESTS_RESULT") |
+          | Docker build + runtime smoke + non-root assertion | $(status_ru "$DOCKER_RESULT") |
           | Trivy / fixable CRITICAL | $(status_ru "$SECURITY_RESULT") |
 
           **Контекст:** `${GITHUB_REPOSITORY}` · `${BRANCH}` · commit `${SHORT_SHA}` · `${GITHUB_EVENT_NAME}`  
