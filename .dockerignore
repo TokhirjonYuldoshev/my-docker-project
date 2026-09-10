@@ -1,0 +1,10 @@
+.git
+.gitignore
+.pytest_cache
+__pycache__
+*.py[cod]
+.venv
+venv
+README.md
+Jenkinsfile
+requirements-dev.txt
