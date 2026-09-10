@@ -75,10 +75,32 @@ jobs:
           actual="$(docker run --rm qa-ci-smoke:${{ github.sha }})"
           test "$actual" = "$expected"
 
+  security:
+    name: Security / Trivy container scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Build image for security scan
+        run: docker build --tag qa-ci-security:${{ github.sha }} .
+
+      - name: Scan image for fixable critical vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: qa-ci-security:${{ github.sha }}
+          format: table
+          severity: CRITICAL
+          ignore-unfixed: 'true'
+          exit-code: '1'
+          timeout: 5m0s
+
   gate:
     name: CI / Required gate
     if: always()
-    needs: [quality, tests, docker]
+    needs: [quality, tests, docker, security]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -87,6 +109,7 @@ jobs:
           QUALITY_RESULT: ${{ needs.quality.result }}
           TESTS_RESULT: ${{ needs.tests.result }}
           DOCKER_RESULT: ${{ needs.docker.result }}
+          SECURITY_RESULT: ${{ needs.security.result }}
         shell: bash
         run: |
           {
@@ -95,6 +118,7 @@ jobs:
             echo "- Flake8: **${QUALITY_RESULT}**"
             echo "- Pytest: **${TESTS_RESULT}**"
             echo "- Docker build + runtime smoke: **${DOCKER_RESULT}**"
+            echo "- Trivy critical-vulnerability gate: **${SECURITY_RESULT}**"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Enforce aggregate result
@@ -102,10 +126,11 @@ jobs:
           QUALITY_RESULT: ${{ needs.quality.result }}
           TESTS_RESULT: ${{ needs.tests.result }}
           DOCKER_RESULT: ${{ needs.docker.result }}
+          SECURITY_RESULT: ${{ needs.security.result }}
         shell: bash
         run: |
           set -euo pipefail
-          for result in "$QUALITY_RESULT" "$TESTS_RESULT" "$DOCKER_RESULT"; do
+          for result in "$QUALITY_RESULT" "$TESTS_RESULT" "$DOCKER_RESULT" "$SECURITY_RESULT"; do
             if [[ "$result" != 'success' ]]; then
               echo "Required CI dependency finished with result: $result" >&2
               exit 1
