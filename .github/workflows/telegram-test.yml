@@ -29,7 +29,7 @@ jobs:
               echo "## ✈️ Telegram diagnostics"
               echo
               echo "❌ Не настроены обязательные repository secrets."
-              echo "Добавьте \`TELEGRAM_BOT_TOKEN\` и \`TELEGRAM_CHAT_ID\`, затем повторите ручной запуск."
+              echo "Добавьте TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID, затем повторите ручной запуск."
             } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
@@ -66,11 +66,10 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          MESSAGE="✅ <b>Telegram diagnostics — УСПЕХ</b>
-
-📦 <b>Репозиторий:</b> <code>${GITHUB_REPOSITORY}</code>
-🧪 Проверены bot token, target chat и sendMessage.
-🔗 <a href=\"${RUN_URL}\">Открыть diagnostic run #${GITHUB_RUN_NUMBER}</a>"
+          MESSAGE="✅ <b>Telegram diagnostics — УСПЕХ</b>"
+          MESSAGE+=$'\n\n'"📦 <b>Репозиторий:</b> <code>${GITHUB_REPOSITORY}</code>"
+          MESSAGE+=$'\n'"🧪 Проверены bot token, target chat и sendMessage."
+          MESSAGE+=$'\n'"🔗 <a href=\"${RUN_URL}\">Открыть diagnostic run #${GITHUB_RUN_NUMBER}</a>"
 
           HTTP_CODE="$(curl --silent --show-error --connect-timeout 10 --max-time 20 \
             --output /tmp/send.json --write-out '%{http_code}' \
