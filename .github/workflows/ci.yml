@@ -195,7 +195,7 @@ jobs:
             {
               echo "## ✈️ Telegram"
               echo
-              echo "ℹ️ Уведомление пропущено: добавьте repository secrets `TELEGRAM_BOT_TOKEN` и `TELEGRAM_CHAT_ID`."
+              echo "ℹ️ Уведомление пропущено: добавьте repository secrets TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID."
             } >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
@@ -240,22 +240,19 @@ jobs:
           EVENT="$(escape_html "$(event_ru "$GITHUB_EVENT_NAME")")"
           SHORT_SHA="${GITHUB_SHA:0:7}"
 
-          MESSAGE="${HEADER}
-
-📦 <b>Репозиторий:</b> <code>${REPO}</code>
-🌿 <b>Ветка:</b> <code>${BRANCH}</code>
-🔄 <b>Событие:</b> ${EVENT}
-👤 <b>Автор:</b> <code>${ACTOR}</code>
-🔖 <b>Commit:</b> <code>${SHORT_SHA}</code>
-
-🧪 <b>Quality gates</b>
-• Flake8: $(status_ru "$QUALITY_RESULT")
-• Pytest: $(status_ru "$TESTS_RESULT")
-• Docker runtime smoke: $(status_ru "$DOCKER_RESULT")
-• Trivy security: $(status_ru "$SECURITY_RESULT")
-• Required gate: $(status_ru "$GATE_RESULT")
-
-🔗 <a href="${RUN_URL}">Открыть GitHub Actions run #${GITHUB_RUN_NUMBER}</a>"
+          MESSAGE="${HEADER}"
+          MESSAGE+=$'\n\n'"📦 <b>Репозиторий:</b> <code>${REPO}</code>"
+          MESSAGE+=$'\n'"🌿 <b>Ветка:</b> <code>${BRANCH}</code>"
+          MESSAGE+=$'\n'"🔄 <b>Событие:</b> ${EVENT}"
+          MESSAGE+=$'\n'"👤 <b>Автор:</b> <code>${ACTOR}</code>"
+          MESSAGE+=$'\n'"🔖 <b>Commit:</b> <code>${SHORT_SHA}</code>"
+          MESSAGE+=$'\n\n'"🧪 <b>Quality gates</b>"
+          MESSAGE+=$'\n'"• Flake8: $(status_ru "$QUALITY_RESULT")"
+          MESSAGE+=$'\n'"• Pytest: $(status_ru "$TESTS_RESULT")"
+          MESSAGE+=$'\n'"• Docker runtime smoke: $(status_ru "$DOCKER_RESULT")"
+          MESSAGE+=$'\n'"• Trivy security: $(status_ru "$SECURITY_RESULT")"
+          MESSAGE+=$'\n'"• Required gate: $(status_ru "$GATE_RESULT")"
+          MESSAGE+=$'\n\n'"🔗 <a href=\"${RUN_URL}\">Открыть GitHub Actions run #${GITHUB_RUN_NUMBER}</a>"
 
           HTTP_CODE="$(curl --silent --show-error \
             --connect-timeout 10 \
