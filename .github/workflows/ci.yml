@@ -74,3 +74,40 @@ jobs:
           expected='Hello from Docker! The application is running successfully.'
           actual="$(docker run --rm qa-ci-smoke:${{ github.sha }})"
           test "$actual" = "$expected"
+
+  gate:
+    name: CI / Required gate
+    if: always()
+    needs: [quality, tests, docker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Publish CI summary
+        env:
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          TESTS_RESULT: ${{ needs.tests.result }}
+          DOCKER_RESULT: ${{ needs.docker.result }}
+        shell: bash
+        run: |
+          {
+            echo '## Python & Docker CI'
+            echo
+            echo "- Flake8: **${QUALITY_RESULT}**"
+            echo "- Pytest: **${TESTS_RESULT}**"
+            echo "- Docker build + runtime smoke: **${DOCKER_RESULT}**"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Enforce aggregate result
+        env:
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          TESTS_RESULT: ${{ needs.tests.result }}
+          DOCKER_RESULT: ${{ needs.docker.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for result in "$QUALITY_RESULT" "$TESTS_RESULT" "$DOCKER_RESULT"; do
+            if [[ "$result" != 'success' ]]; then
+              echo "Required CI dependency finished with result: $result" >&2
+              exit 1
+            fi
+          done
