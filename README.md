@@ -1,181 +1,98 @@
-<div align="center">
+# Jenkins + Docker CI Pipeline
 
-# 🚀 DevOps CI/CD Automation Project  
-# 🚀 DevOps CI/CD Автоматизация
+A compact QA/DevOps portfolio project that demonstrates a **Jenkins Declarative Pipeline** for linting, automated tests, Docker image build/push and Telegram build notifications.
 
-### End-to-End CI/CD Pipeline with Docker, Jenkins & Automated Testing  
-### Полноценный CI/CD пайплайн с Docker, Jenkins и автотестами
+## What the pipeline does
 
-![Jenkins](https://img.shields.io/badge/Jenkins-CI%2FCD-red?style=for-the-badge&logo=jenkins)
-![Docker](https://img.shields.io/badge/Docker-Container-blue?style=for-the-badge&logo=docker)
-![Python](https://img.shields.io/badge/Python-3.9-yellow?style=for-the-badge&logo=python)
-![Pytest](https://img.shields.io/badge/Tests-Pytest-success?style=for-the-badge&logo=pytest)
-![Flake8](https://img.shields.io/badge/Lint-Flake8-black?style=for-the-badge)
-
-</div>
-
----
-
-# 📌 Project Overview | О проекте
-
-## EN
-
-This project demonstrates a production-style **CI/CD pipeline** built using modern DevOps practices.
-
-It automates the full delivery workflow:
-
-- Static code analysis with Flake8  
-- Automated testing with Pytest  
-- Docker image build  
-- Image push to Docker Hub  
-- Telegram build notifications  
-- Secure credentials management in Jenkins  
-
-The goal is to simulate a real-world DevOps workflow — from code commit to container deployment.
-
----
-
-## RU
-
-Этот проект демонстрирует production-подобный **CI/CD пайплайн**, построенный с использованием современных DevOps-практик.
-
-Он автоматизирует полный процесс доставки приложения:
-
-- Статический анализ кода через Flake8  
-- Автоматическое тестирование с помощью Pytest  
-- Сборка Docker-образа  
-- Публикация образа в Docker Hub  
-- Уведомления о сборке в Telegram  
-- Безопасное управление учётными данными в Jenkins  
-
-Цель проекта — смоделировать реальный DevOps-процесс от коммита кода до публикации контейнера.
-
----
-
-# 🧱 CI/CD Architecture | Архитектура CI/CD
-
-<div align="center">
-
-### ⚡ Automated CI/CD Flow  
-### ⚡ Автоматизированный CI/CD процесс
-
-</div>
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│ 👨‍💻 Developer                                                 │
-│    Code Commit / Push                                        │
-└──────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌──────────────────────────────────────────────────────────────┐
-│ 🌐 GitHub Repository                                         │
-│    Source Code Storage & Version Control                     │
-└──────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌──────────────────────────────────────────────────────────────┐
-│ 🤖 Jenkins Declarative Pipeline                              │
-├──────────────────────────────────────────────────────────────┤
-│  1️⃣  Checkout Source Code                                    │
-│  2️⃣  Lint (Flake8)            → Code Quality Validation      │
-│  3️⃣  Run Tests (Pytest)       → Automated Test Execution     │
-│  4️⃣  Build Docker Image       → Container Packaging          │
-│  5️⃣  Push to Docker Hub       → Image Distribution           │
-│  6️⃣  Telegram Notification     → Build Status Alert          │
-└──────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌──────────────────────────────────────────────────────────────┐
-│ 🚀 Production-Ready Docker Image                             │
-│    Available for Deployment                                  │
-└──────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    A[Git push] --> J[Jenkins]
+    J --> L[Flake8]
+    L --> T[Pytest]
+    T --> B[Docker build]
+    B --> H[Docker Hub push]
+    H --> N[Telegram notification]
 ```
 
----
+Pipeline stages:
 
-### EN  
-Every code push triggers a fully automated pipeline that validates, tests, builds, and distributes the application container.
+1. checkout source code;
+2. install pinned development dependencies;
+3. run Flake8;
+4. run Pytest;
+5. build a Docker image;
+6. push the image to Docker Hub;
+7. remove the local image;
+8. report build status to Telegram.
 
-### RU  
-Каждый push запускает полностью автоматизированный пайплайн, который проверяет, тестирует, собирает и публикует контейнер приложения.
+## Tech stack
 
----
-
-
-# 🛠️ Tech Stack | Технологический стек
-
-| Category | Technology |
-|----------|------------|
-| Programming Language | Python 3.9 |
-| CI/CD Engine | Jenkins (Declarative Pipeline) |
+| Area | Technology |
+| --- | --- |
+| CI | Jenkins Declarative Pipeline |
+| Language | Python 3.9 |
+| Tests | Pytest |
+| Static analysis | Flake8 |
 | Containerization | Docker |
-| Testing Framework | Pytest |
-| Code Quality | Flake8 |
-| Container Registry | Docker Hub |
+| Registry | Docker Hub |
 | Notifications | Telegram Bot API |
 
----
+## Repository structure
 
-# ⚙️ Pipeline Stages | Этапы пайплайна
+```text
+my-docker-project/
+├── Dockerfile
+├── Jenkinsfile
+├── app.py
+├── test_app.py
+├── requirements-dev.txt
+└── README.md
+```
 
-| Stage | EN | RU |
-|-------|----|----|
-| 1️⃣ Checkout | Pull source code from GitHub | Получение исходного кода из GitHub |
-| 2️⃣ Lint | Run Flake8 analysis | Проверка качества кода через Flake8 |
-| 3️⃣ Test | Execute Pytest suite | Запуск автотестов Pytest |
-| 4️⃣ Build | Build Docker image | Сборка Docker-образа |
-| 5️⃣ Push | Push image to Docker Hub | Публикация образа в Docker Hub |
-| 6️⃣ Notify | Send Telegram notification | Отправка уведомления в Telegram |
+## Test scope
 
----
+The current application is intentionally small. The automated test verifies the observable application message returned by `get_message()`.
 
-# 🟢 Build & Image Status | Статус сборки и образа
+This repository demonstrates **pipeline integration and delivery mechanics**, not a large application test suite. The focus is on connecting code quality, tests, container build, registry publication and build notifications into one repeatable Jenkins flow.
 
-![Docker Pulls](https://img.shields.io/docker/pulls/tokhirjonyuldoshev/shoxrux-app?style=flat-square&logo=docker)
+## Dependency management
 
----
-
-# 🚀 Quick Start | Быстрый запуск
+Development tools are pinned in `requirements-dev.txt` and installed by Jenkins:
 
 ```bash
-docker run --rm tokhirjonyuldoshev/shoxrux-app:23
+python -m pip install -r requirements-dev.txt
+python -m flake8 app.py test_app.py --count --statistics
+python -m pytest -q
+```
+
+## Docker
+
+Build locally:
+
+```bash
+docker build -t shoxrux-app .
+```
+
+Run locally:
+
+```bash
+docker run --rm shoxrux-app
+```
+
+The Jenkins pipeline publishes versioned images using the Jenkins build number as the image tag.
+
+## Secrets
+
+Docker Hub and Telegram credentials are read from **Jenkins Credentials**. Tokens and passwords are not stored in the repository.
+
+Expected Jenkins credential IDs:
+
+```text
+docker-hub-credentials
+telegram-token
+telegram-chat-id
 ```
 
 ---
 
-# 🎯 Key DevOps Concepts | Ключевые DevOps-подходы
-
-## EN
-- CI/CD pipeline design  
-- Declarative Jenkins Pipelines  
-- Automated testing integration  
-- Docker image lifecycle management  
-- Secure secret handling  
-- End-to-end automation  
-
-## RU
-- Проектирование CI/CD пайплайна  
-- Declarative Pipeline в Jenkins  
-- Интеграция автотестирования  
-- Управление жизненным циклом Docker-образа  
-- Безопасная работа с секретами  
-- Сквозная автоматизация  
-
----
-
-# 👨‍💻 Author | Автор
-
-**Tokhirjon Yuldoshev**
-
-- GitHub: https://github.com/TokhirjonYuldoshev  
-- Docker Hub: https://hub.docker.com/u/tokhirjonyuldoshev  
-
----
-
-<div align="center">
-
-## ⭐ If you found this project useful, consider giving it a star!  
-## ⭐ Если проект был полезен — поддержите его звездой!
-
-</div>
+**Portfolio project by Tokhirjon Yuldoshev**
