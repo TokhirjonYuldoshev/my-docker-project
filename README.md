@@ -1,35 +1,79 @@
 # Jenkins + Docker CI Pipeline
 
-A compact QA/DevOps portfolio project that demonstrates a **Jenkins Declarative Pipeline** for linting, automated tests, Docker image build/push and Telegram build notifications.
+[![Python & Docker CI](https://github.com/TokhirjonYuldoshev/my-docker-project/actions/workflows/ci.yml/badge.svg)](https://github.com/TokhirjonYuldoshev/my-docker-project/actions/workflows/ci.yml)
 
-## What the pipeline does
+A compact QA/DevOps portfolio project that demonstrates two complementary automation paths:
+
+- **GitHub Actions CI** validates every pull request and push with Flake8, Pytest, Docker build and a container runtime smoke test;
+- **Jenkins delivery pipeline** repeats the quality gates, builds and smoke-tests the image, publishes it to Docker Hub and reports the build result to Telegram.
+
+## Automation architecture
 
 ```mermaid
 flowchart LR
-    A[Git push] --> J[Jenkins]
-    J --> L[Flake8]
-    L --> T[Pytest]
-    T --> B[Docker build]
-    B --> H[Docker Hub push]
+    C[Code change] --> GH[GitHub Actions CI]
+    GH --> Q1[Flake8]
+    Q1 --> T1[Pytest]
+    T1 --> B1[Docker build]
+    B1 --> S1[Container smoke]
+
+    C --> J[Jenkins]
+    J --> Q2[Flake8]
+    Q2 --> T2[Pytest]
+    T2 --> B2[Docker build]
+    B2 --> S2[Container smoke]
+    S2 --> H[Docker Hub push]
     H --> N[Telegram notification]
 ```
 
-Pipeline stages:
+## Quality gates
+
+A change is considered technically healthy only when these independent checks pass:
+
+| Gate | What it proves |
+| --- | --- |
+| Flake8 | Python source and test files satisfy the configured static-quality rules |
+| Pytest | The observable application behavior matches the expected contract |
+| Docker build | The application can be packaged from the repository state |
+| Container runtime smoke | The built image actually starts and returns the expected application output |
+
+The container smoke test is deliberately separate from the unit test: a successful unit test does not prove that packaging and container execution are correct.
+
+## GitHub Actions CI
+
+Workflow: `.github/workflows/ci.yml`
+
+Triggers:
+
+- pull requests;
+- pushes to `main`;
+- manual `workflow_dispatch`.
+
+The workflow uses read-only repository permissions, per-ref concurrency and explicit job timeouts. CI does **not** publish images and does not require Docker Hub or Telegram credentials.
+
+## Jenkins delivery pipeline
+
+The Jenkins Declarative Pipeline executes:
 
 1. checkout source code;
 2. install pinned development dependencies;
 3. run Flake8;
 4. run Pytest;
-5. build a Docker image;
-6. push the image to Docker Hub;
-7. remove the local image;
-8. report build status to Telegram.
+5. build the Docker image;
+6. run the container smoke test;
+7. authenticate to Docker Hub through Jenkins Credentials;
+8. publish the versioned image;
+9. clean up the local image;
+10. report the result to Telegram.
+
+Docker cleanup is attempted even when an earlier delivery stage fails. Telegram is treated as an **observability channel**, not as the source of truth for build health: a notification transport failure produces a warning but does not turn an otherwise healthy pipeline into a false product failure.
 
 ## Tech stack
 
 | Area | Technology |
 | --- | --- |
-| CI | Jenkins Declarative Pipeline |
+| CI validation | GitHub Actions |
+| Delivery automation | Jenkins Declarative Pipeline |
 | Language | Python 3.9 |
 | Tests | Pytest |
 | Static analysis | Flake8 |
@@ -41,6 +85,11 @@ Pipeline stages:
 
 ```text
 my-docker-project/
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+├── .dockerignore
+├── .gitignore
 ├── Dockerfile
 ├── Jenkinsfile
 ├── app.py
@@ -51,13 +100,13 @@ my-docker-project/
 
 ## Test scope
 
-The current application is intentionally small. The automated test verifies the observable application message returned by `get_message()`.
+The application is intentionally small. The automated unit test verifies the observable message returned by `get_message()`.
 
-This repository demonstrates **pipeline integration and delivery mechanics**, not a large application test suite. The focus is on connecting code quality, tests, container build, registry publication and build notifications into one repeatable Jenkins flow.
+This repository demonstrates **quality-gate integration and delivery mechanics**, not a large product test suite. The focus is on making linting, tests, container validation, image publication, cleanup and notifications explicit and repeatable.
 
 ## Dependency management
 
-Development tools are pinned in `requirements-dev.txt` and installed by Jenkins:
+Development tools are pinned in `requirements-dev.txt`:
 
 ```bash
 python -m pip install -r requirements-dev.txt
@@ -79,9 +128,15 @@ Run locally:
 docker run --rm shoxrux-app
 ```
 
+Expected output:
+
+```text
+Hello from Docker! The application is running successfully.
+```
+
 The Jenkins pipeline publishes versioned images using the Jenkins build number as the image tag.
 
-## Secrets
+## Secrets and failure semantics
 
 Docker Hub and Telegram credentials are read from **Jenkins Credentials**. Tokens and passwords are not stored in the repository.
 
@@ -92,6 +147,8 @@ docker-hub-credentials
 telegram-token
 telegram-chat-id
 ```
+
+A quality, test, build, runtime-smoke or publish failure fails the Jenkins build. Cleanup and notification delivery are auxiliary operations and do not hide the original pipeline result.
 
 ---
 
