@@ -86,6 +86,7 @@ Docker cleanup is attempted even when an earlier delivery stage fails. Telegram 
 ```text
 my-docker-project/
 ├── .github/
+│   ├── dependabot.yml
 │   └── workflows/
 │       └── ci.yml
 ├── .dockerignore
@@ -113,6 +114,8 @@ python -m pip install -r requirements-dev.txt
 python -m flake8 app.py test_app.py --count --statistics
 python -m pytest -q
 ```
+
+Dependabot checks **Python dependencies** and **GitHub Actions** weekly. Dependency updates are proposed as pull requests rather than auto-merged, so they must pass the same Flake8, Pytest, Docker build and runtime-smoke gates as normal changes.
 
 ## Docker
 
