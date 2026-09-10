@@ -95,17 +95,18 @@ pipeline {
                 def buildResult = currentBuild.currentResult ?: 'UNKNOWN'
                 def telegramHeader = buildResult == 'SUCCESS' ? '✅ Jenkins CI/CD — УСПЕХ' : '🚨 Jenkins CI/CD — ТРЕБУЕТ ВНИМАНИЯ'
 
-                withCredentials([
-                    string(credentialsId: 'telegram-token', variable: 'BOT_TOKEN'),
-                    string(credentialsId: 'telegram-chat-id', variable: 'CHAT_ID')
-                ]) {
-                    withEnv([
-                        "TG_BUILD_RESULT=${buildResult}",
-                        "TG_HEADER=${telegramHeader}"
+                try {
+                    withCredentials([
+                        string(credentialsId: 'telegram-token', variable: 'BOT_TOKEN'),
+                        string(credentialsId: 'telegram-chat-id', variable: 'CHAT_ID')
                     ]) {
-                        def notifyStatus = bat(
-                            returnStatus: true,
-                            script: '''@echo off
+                        withEnv([
+                            "TG_BUILD_RESULT=${buildResult}",
+                            "TG_HEADER=${telegramHeader}"
+                        ]) {
+                            def notifyStatus = bat(
+                                returnStatus: true,
+                                script: '''@echo off
 chcp 65001 >nul
 set "TG_MESSAGE_FILE=%TEMP%\\jenkins-telegram-%BUILD_NUMBER%.txt"
 (
@@ -124,11 +125,14 @@ set "TG_EXIT=%ERRORLEVEL%"
 del /q "%TG_MESSAGE_FILE%" >nul 2>&1
 exit /b %TG_EXIT%
 '''
-                        )
-                        if (notifyStatus != 0) {
-                            echo "WARNING: Telegram notification could not be delivered. Jenkins result remains ${buildResult}."
+                            )
+                            if (notifyStatus != 0) {
+                                echo "WARNING: Telegram notification could not be delivered. Jenkins result remains ${buildResult}."
+                            }
                         }
                     }
+                } catch (err) {
+                    echo "WARNING: Telegram notification setup failed. Jenkins result remains ${buildResult}."
                 }
             }
         }
