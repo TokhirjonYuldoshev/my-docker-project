@@ -33,7 +33,19 @@ pipeline {
             }
         }
 
-        stage('Build & Push Docker Image') {
+        stage('Build Docker Image') {
+            steps {
+                bat 'docker build -t %DOCKER_NAMESPACE%/%IMAGE_NAME%:%IMAGE_TAG% .'
+            }
+        }
+
+        stage('Container Smoke Test') {
+            steps {
+                bat 'docker run --rm %DOCKER_NAMESPACE%/%IMAGE_NAME%:%IMAGE_TAG% | findstr /x /c:"Hello from Docker! The application is running successfully."'
+            }
+        }
+
+        stage('Push Docker Image') {
             steps {
                 script {
                     withCredentials([
@@ -43,30 +55,41 @@ pipeline {
                             usernameVariable: 'DOCKER_USER'
                         )
                     ]) {
-                        bat 'echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin'
-                        bat 'docker build -t %DOCKER_NAMESPACE%/%IMAGE_NAME%:%IMAGE_TAG% .'
-                        bat 'docker push %DOCKER_NAMESPACE%/%IMAGE_NAME%:%IMAGE_TAG%'
-                        bat 'docker logout'
+                        try {
+                            bat 'echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin'
+                            bat 'docker push %DOCKER_NAMESPACE%/%IMAGE_NAME%:%IMAGE_TAG%'
+                        } finally {
+                            bat(returnStatus: true, script: 'docker logout')
+                        }
                     }
                 }
-            }
-        }
-
-        stage('Clean Up') {
-            steps {
-                bat 'docker rmi %DOCKER_NAMESPACE%/%IMAGE_NAME%:%IMAGE_TAG%'
             }
         }
     }
 
     post {
+        always {
+            script {
+                bat(
+                    returnStatus: true,
+                    script: 'docker rmi %DOCKER_NAMESPACE%/%IMAGE_NAME%:%IMAGE_TAG%'
+                )
+            }
+        }
+
         success {
             script {
                 withCredentials([
                     string(credentialsId: 'telegram-token', variable: 'BOT_TOKEN'),
                     string(credentialsId: 'telegram-chat-id', variable: 'CHAT_ID')
                 ]) {
-                    bat 'curl --fail --silent --show-error -X POST "https://api.telegram.org/bot%BOT_TOKEN%/sendMessage" -d "chat_id=%CHAT_ID%" --data-urlencode "text=SUCCESS: Jenkins build #%BUILD_NUMBER% published %DOCKER_NAMESPACE%/%IMAGE_NAME%:%IMAGE_TAG%"'
+                    def notifyStatus = bat(
+                        returnStatus: true,
+                        script: 'curl --fail --silent --show-error -X POST "https://api.telegram.org/bot%BOT_TOKEN%/sendMessage" -d "chat_id=%CHAT_ID%" --data-urlencode "text=SUCCESS: Jenkins build #%BUILD_NUMBER% published %DOCKER_NAMESPACE%/%IMAGE_NAME%:%IMAGE_TAG%"'
+                    )
+                    if (notifyStatus != 0) {
+                        echo 'WARNING: Telegram success notification could not be delivered.'
+                    }
                 }
             }
         }
@@ -77,7 +100,13 @@ pipeline {
                     string(credentialsId: 'telegram-token', variable: 'BOT_TOKEN'),
                     string(credentialsId: 'telegram-chat-id', variable: 'CHAT_ID')
                 ]) {
-                    bat 'curl --fail --silent --show-error -X POST "https://api.telegram.org/bot%BOT_TOKEN%/sendMessage" -d "chat_id=%CHAT_ID%" --data-urlencode "text=FAILED: Jenkins build #%BUILD_NUMBER%. Check Jenkins console output."'
+                    def notifyStatus = bat(
+                        returnStatus: true,
+                        script: 'curl --fail --silent --show-error -X POST "https://api.telegram.org/bot%BOT_TOKEN%/sendMessage" -d "chat_id=%CHAT_ID%" --data-urlencode "text=FAILED: Jenkins build #%BUILD_NUMBER%. Check Jenkins console output."'
+                    )
+                    if (notifyStatus != 0) {
+                        echo 'WARNING: Telegram failure notification could not be delivered.'
+                    }
                 }
             }
         }
