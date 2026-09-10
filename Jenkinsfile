@@ -1,6 +1,12 @@
 pipeline {
     agent any
 
+    options {
+        skipDefaultCheckout(true)
+        disableConcurrentBuilds()
+        timeout(time: 30, unit: 'MINUTES')
+    }
+
     environment {
         DOCKER_NAMESPACE = "tokhirjonyuldoshev"
         IMAGE_NAME = "shoxrux-app"
