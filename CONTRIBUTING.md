@@ -18,11 +18,19 @@ python -m pip check
 
 ## Required local validation
 
-Before opening a pull request that changes Python code, tests or Docker packaging, run the applicable checks:
+The preferred deterministic preflight is:
+
+```bash
+python scripts/verify-local.py
+```
+
+It verifies the Python 3.12+ runtime, installed dependency consistency, Flake8, Pytest, Docker build, declared non-root image user and the exact container stdout contract. The temporary local image is removed in cleanup even when a validation step fails.
+
+Equivalent individual checks are:
 
 ```bash
 python -m pip check
-python -m flake8 app.py test_app.py --count --statistics
+python -m flake8 app.py test_app.py scripts/verify-local.py --count --statistics
 python -m pytest -q
 docker build -t qa-ci-smoke:local .
 docker image inspect qa-ci-smoke:local --format '{{.Config.User}}'
@@ -54,7 +62,7 @@ The blocking Trivy policy is enforced in GitHub Actions. Container/security chan
 A pull request is ready to merge when:
 
 1. the change is scoped and technically explained;
-2. local validation is complete where applicable;
+2. local preflight is complete where applicable;
 3. GitHub Actions reports green dependency integrity/Flake8, Pytest, Docker runtime/non-root and Trivy jobs;
 4. `CI / Required gate` is green;
 5. retained artifacts exist where applicable (JUnit and Trivy evidence);
