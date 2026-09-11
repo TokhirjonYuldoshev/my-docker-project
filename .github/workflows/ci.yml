@@ -6,6 +6,9 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    # Weekly rebuild catches mutable base-image/security drift even without repository changes.
+    - cron: "30 3 * * 0"
 
 permissions:
   contents: read
@@ -174,7 +177,7 @@ jobs:
           **Контекст:** `${GITHUB_REPOSITORY}` · `${BRANCH}` · commit `${SHORT_SHA}` · `${GITHUB_EVENT_NAME}`  
           **Run:** [открыть GitHub Actions](${RUN_URL})
 
-          > ✈️ Telegram-уведомление после push в `main` и ручного запуска — отдельный observability signal и не подменяет CI result.
+          > ✈️ Telegram-уведомление после push в `main`, ручного и weekly scheduled запуска — отдельный observability signal и не подменяет CI result.
           EOF
 
       - name: Enforce aggregate result
@@ -233,7 +236,7 @@ jobs:
             case "$1" in
               push) echo "Push в main" ;;
               workflow_dispatch) echo "Ручной запуск" ;;
-              schedule) echo "Запуск по расписанию" ;;
+              schedule) echo "Weekly baseline validation" ;;
               *) echo "$1" ;;
             esac
           }
