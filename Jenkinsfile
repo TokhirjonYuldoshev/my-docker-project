@@ -30,6 +30,7 @@ pipeline {
         stage('Install CI Dependencies') {
             steps {
                 bat 'python -m pip install --disable-pip-version-check -r requirements-dev.txt'
+                bat 'python -m pip check'
             }
         }
 
@@ -51,9 +52,59 @@ pipeline {
             }
         }
 
+        stage('Container Runtime Policy') {
+            steps {
+                bat '''@echo off
+setlocal
+set "INSPECT_FILE=%TEMP%\\docker-user-%BUILD_NUMBER%.txt"
+docker image inspect %DOCKER_NAMESPACE%/%IMAGE_NAME%:%IMAGE_TAG% --format "{{.Config.User}}" > "%INSPECT_FILE%" 2>&1
+set "INSPECT_EXIT=%ERRORLEVEL%"
+if not "%INSPECT_EXIT%"=="0" (
+    type "%INSPECT_FILE%"
+    del /q "%INSPECT_FILE%" >nul 2>&1
+    endlocal & exit /b %INSPECT_EXIT%
+)
+set /p "CONFIGURED_USER="<"%INSPECT_FILE%"
+del /q "%INSPECT_FILE%" >nul 2>&1
+if not defined CONFIGURED_USER (
+    echo ERROR: Docker image does not declare a runtime user.
+    endlocal & exit /b 1
+)
+if /I "%CONFIGURED_USER%"=="root" (
+    echo ERROR: Docker image declares root as runtime user.
+    endlocal & exit /b 1
+)
+if "%CONFIGURED_USER%"=="0" (
+    echo ERROR: Docker image declares UID 0 as runtime user.
+    endlocal & exit /b 1
+)
+echo Verified non-root Docker runtime user: %CONFIGURED_USER%
+endlocal
+'''
+            }
+        }
+
         stage('Container Smoke Test') {
             steps {
-                bat 'docker run --rm %DOCKER_NAMESPACE%/%IMAGE_NAME%:%IMAGE_TAG% | findstr /x /c:"Hello from Docker! The application is running successfully."'
+                bat '''@echo off
+setlocal
+set "SMOKE_FILE=%TEMP%\\docker-smoke-%BUILD_NUMBER%.txt"
+docker run --rm %DOCKER_NAMESPACE%/%IMAGE_NAME%:%IMAGE_TAG% > "%SMOKE_FILE%" 2>&1
+set "DOCKER_EXIT=%ERRORLEVEL%"
+if not "%DOCKER_EXIT%"=="0" (
+    type "%SMOKE_FILE%"
+    del /q "%SMOKE_FILE%" >nul 2>&1
+    endlocal & exit /b %DOCKER_EXIT%
+)
+powershell.exe -NoLogo -NoProfile -NonInteractive -Command "$actual = (Get-Content -LiteralPath $env:SMOKE_FILE -Raw).Trim(); if ($actual -cne 'Hello from Docker! The application is running successfully.') { Write-Error ('Container stdout contract mismatch. Actual: ' + $actual); exit 1 }"
+set "VERIFY_EXIT=%ERRORLEVEL%"
+type "%SMOKE_FILE%"
+del /q "%SMOKE_FILE%" >nul 2>&1
+if not "%VERIFY_EXIT%"=="0" (
+    endlocal & exit /b %VERIFY_EXIT%
+)
+endlocal
+'''
             }
         }
 
@@ -115,7 +166,7 @@ set "TG_MESSAGE_FILE=%TEMP%\\jenkins-telegram-%BUILD_NUMBER%.txt"
   echo 📦 Image: %DOCKER_NAMESPACE%/%IMAGE_NAME%:%IMAGE_TAG%
   echo 🔄 Build: #%BUILD_NUMBER%
   echo 📊 Result: %TG_BUILD_RESULT%
-  echo 🧪 Gates: Flake8 ^> Pytest ^> Docker build ^> Runtime smoke
+  echo 🧪 Gates: Flake8 ^> Pytest ^> Docker build ^> non-root policy ^> runtime smoke
   echo 📤 Publish policy: Docker Hub only from main
   echo 🔗 Jenkins: %BUILD_URL%
 )>"%TG_MESSAGE_FILE%"
