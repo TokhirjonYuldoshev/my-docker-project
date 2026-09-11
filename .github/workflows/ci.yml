@@ -115,17 +115,63 @@ jobs:
       - name: Build image for security scan
         run: docker build --tag qa-ci-security:${{ github.sha }} .
 
+      - name: Prepare security evidence directory
+        run: mkdir -p reports
+
       - name: Scan image for fixable critical vulnerabilities
+        id: trivy_scan
+        continue-on-error: true
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           version: v0.74.0
           scan-type: image
           image-ref: qa-ci-security:${{ github.sha }}
-          format: table
+          format: json
+          output: reports/trivy.json
           severity: CRITICAL
           ignore-unfixed: 'true'
           exit-code: '1'
           timeout: 5m0s
+
+      - name: Upload Trivy security evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: trivy-critical-${{ github.run_id }}
+          path: reports/trivy.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Publish Trivy evidence summary
+        if: ${{ always() }}
+        env:
+          TRIVY_OUTCOME: ${{ steps.trivy_scan.outcome }}
+        run: |
+          set -u
+          if [[ -s reports/trivy.json ]]; then
+            CRITICAL_COUNT="$(jq '[.Results[]? | .Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' reports/trivy.json)"
+          else
+            CRITICAL_COUNT="unavailable"
+          fi
+          {
+            echo "## Trivy container security evidence"
+            echo
+            echo "- Scanner outcome: **${TRIVY_OUTCOME:-not-run}**"
+            echo "- Policy: fixable CRITICAL vulnerabilities are blocking"
+            echo "- Reported CRITICAL findings: **${CRITICAL_COUNT}**"
+            echo "- Evidence: \`trivy-critical-${GITHUB_RUN_ID}\` artifact (14 days)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Enforce Trivy security result
+        if: ${{ always() }}
+        env:
+          TRIVY_OUTCOME: ${{ steps.trivy_scan.outcome }}
+        run: |
+          set -euo pipefail
+          if [[ "$TRIVY_OUTCOME" != 'success' ]]; then
+            echo "Trivy security scan finished with outcome: $TRIVY_OUTCOME" >&2
+            exit 1
+          fi
 
   gate:
     name: CI / Required gate
