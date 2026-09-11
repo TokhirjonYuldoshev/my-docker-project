@@ -44,7 +44,7 @@ jobs:
         run: python -m pip check
 
       - name: Run Flake8
-        run: python -m flake8 app.py test_app.py --count --statistics
+        run: python -m flake8 app.py test_app.py scripts/verify-local.py --count --statistics
 
   tests:
     name: Tests / Pytest
