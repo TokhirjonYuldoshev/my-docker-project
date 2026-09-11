@@ -83,7 +83,7 @@ Runbook определяет:
 - правило максимум одного targeted diagnostic rerun после подтверждённого external recovery;
 - anti-patterns: никакого gate weakening, произвольных sleeps/retries или suppress fixable `CRITICAL` findings.
 
-Для фиксации таких случаев есть структурированный `.github/ISSUE_TEMPLATE/pipeline_incident.yml`: issue требует указать owning signal, severity, revision, evidence, reproducibility и impact, а также подтвердить отсутствие секретов и masking-workarounds.
+Для фиксации таких случаев есть структурированный `.github/ISSUE_TEMPLATE/pipeline_incident.yml`: issue требует указать owning signal, severity, revision, evidence, reproducibility и impact, а также подтвердить отсутствие секретов и masking-workarounds. Blank issues отключены через `.github/ISSUE_TEMPLATE/config.yml`; security-вопросы направляются к `SECURITY.md`.
 
 ## Telegram-уведомления GitHub Actions
 
@@ -123,7 +123,7 @@ TELEGRAM_CHAT_ID
 
 Container smoke намеренно не использует pipe как источник общего exit status: результат `docker run` сохраняется отдельно, а stdout затем сравнивается с ожидаемым контрактом. Поэтому ошибочный Docker runtime не может стать ложным success только из-за совпавшей строки в выводе.
 
-Validation stages выполняются независимо от source branch. Docker Hub publish использует **fail-closed branch policy**: stage разрешена только при `BRANCH_NAME=main` или `GIT_BRANCH=origin/main`; неизвестная или feature-ветка image не публикует.
+Validation stages выполняются независимо от source branch. Docker Hub publish использует **fail-closed branch policy**: допускаются только явные канонические формы `main` (`main`, `origin/main`, `refs/heads/main`, `refs/remotes/origin/main`) из Jenkins `BRANCH_NAME` / `GIT_BRANCH`; неизвестная или feature-ветка image не публикует.
 
 Pipeline отключает неявный Declarative checkout, потому что checkout контролируется отдельной stage. Builds сериализованы, чтобы избежать конфликтов общего Docker/credential state на агенте, история ограничена последними 20 builds, а глобальный timeout не позволяет зависшему delivery занимать executor бесконечно.
 
@@ -161,6 +161,7 @@ my-docker-project/
 │   ├── CODEOWNERS
 │   ├── dependabot.yml
 │   ├── ISSUE_TEMPLATE/
+│   │   ├── config.yml
 │   │   └── pipeline_incident.yml
 │   ├── pull_request_template.md
 │   └── workflows/
@@ -182,7 +183,7 @@ my-docker-project/
 └── README.md
 ```
 
-`CONTRIBUTING.md` фиксирует change/validation policy, `SECURITY.md` — security boundaries и работу с секретами, `CODEOWNERS` делает ownership критичных CI/CD-файлов явным, а incident runbook и issue form задают единый operational triage contract.
+`CONTRIBUTING.md` фиксирует change/validation policy, `SECURITY.md` — security boundaries и работу с секретами, `CODEOWNERS` делает ownership критичных CI/CD-файлов явным, а incident runbook, structured issue form и issue intake config задают единый operational triage contract.
 
 ## Test scope
 
