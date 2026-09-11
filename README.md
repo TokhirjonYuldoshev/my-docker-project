@@ -5,7 +5,7 @@
 Небольшой, но инженерно оформленный QA/DevOps portfolio-проект, который показывает два независимых пути автоматизации качества:
 
 - **GitHub Actions CI** проверяет каждый Pull Request и push в `main` через Flake8, Pytest, Docker runtime smoke, non-root runtime assertion и blocking security gate на Trivy; тот же baseline перепроверяется по weekly schedule, чтобы видеть drift базового image и security state даже без изменения репозитория;
-- **Jenkins delivery pipeline** повторяет quality gates, собирает и smoke-тестирует Docker image, а публикацию versioned image в Docker Hub разрешает только из `main`;
+- **Jenkins delivery pipeline** повторяет quality gates, проверяет целостность Python dependencies, собирает image, отдельно валидирует non-root runtime policy и точный container stdout contract, а публикацию versioned image в Docker Hub разрешает только из `main`;
 - **Telegram observability** для GitHub Actions вынесена в отдельный job и не может подменить реальный CI result.
 
 ## Архитектура автоматизации
@@ -28,7 +28,8 @@ flowchart LR
     J --> Q2[Flake8]
     Q2 --> T2[Pytest]
     T2 --> B2[Docker build]
-    B2 --> S2[Container smoke]
+    B2 --> P2[Non-root runtime policy]
+    P2 --> S2[Container smoke\nexit + exact stdout]
     S2 --> H[Docker Hub push\nmain only]
     H --> N[Telegram notification]
 ```
@@ -49,7 +50,7 @@ Unit test и container smoke разделены намеренно: успешн
 
 Проект стандартизирован на **Python 3.12** для GitHub Actions и Docker runtime. Jenkins требует **Python 3.12+** и fail-fast завершает pipeline, если агент не соответствует baseline.
 
-Docker container запускает приложение не от `root`; GitHub Actions проверяет это отдельным runtime-policy assertion через metadata собранного image. CI устанавливает только зафиксированные зависимости из `requirements-dev.txt`, без неявного обновления tooling при каждом запуске.
+Docker container запускает приложение не от `root`; это проверяется и GitHub Actions, и Jenkins через metadata собранного image. CI устанавливает только зафиксированные зависимости из `requirements-dev.txt`, без неявного обновления tooling при каждом запуске. Jenkins дополнительно выполняет `pip check`, чтобы конфликт установленных Python dependencies не прошёл дальше как скрытая delivery-проблема.
 
 ## GitHub Actions CI
 
@@ -110,14 +111,17 @@ TELEGRAM_CHAT_ID
 
 1. checkout исходного кода;
 2. проверку Python 3.12+;
-3. установку pinned development dependencies;
+3. установку pinned development dependencies и `pip check`;
 4. Flake8;
 5. Pytest;
 6. Docker build;
-7. container runtime smoke;
-8. для `main` — авторизацию в Docker Hub через Jenkins Credentials и публикацию versioned image;
-9. cleanup локального image;
-10. Telegram notification о результате и publish policy.
+7. проверку declared non-root runtime user через image metadata;
+8. container runtime smoke с независимой проверкой exit code и точным сравнением stdout;
+9. для `main` — авторизацию в Docker Hub через Jenkins Credentials и публикацию versioned image;
+10. cleanup локального image;
+11. Telegram notification о результате и publish policy.
+
+Container smoke намеренно не использует pipe как источник общего exit status: результат `docker run` сохраняется отдельно, а stdout затем сравнивается с ожидаемым контрактом. Поэтому ошибочный Docker runtime не может стать ложным success только из-за совпавшей строки в выводе.
 
 Validation stages выполняются независимо от source branch. Docker Hub publish использует **fail-closed branch policy**: stage разрешена только при `BRANCH_NAME=main` или `GIT_BRANCH=origin/main`; неизвестная или feature-ветка image не публикует.
 
@@ -131,7 +135,7 @@ telegram-token
 telegram-chat-id
 ```
 
-Telegram failure в Jenkins не скрывает результат линтинга, тестов, сборки, smoke или публикации image.
+Telegram failure в Jenkins не скрывает результат линтинга, тестов, сборки, runtime policy, smoke или публикации image.
 
 ## Стек
 
@@ -192,6 +196,7 @@ Development tools зафиксированы в `requirements-dev.txt`:
 
 ```bash
 python -m pip install --disable-pip-version-check -r requirements-dev.txt
+python -m pip check
 python -m flake8 app.py test_app.py --count --statistics
 python -m pytest -q
 ```
@@ -223,6 +228,8 @@ Hello from Docker! The application is running successfully.
 - secrets и пароли не хранятся в репозитории;
 - Trivy — отдельный blocking signal для fixable `CRITICAL` container vulnerabilities;
 - Docker image публикуется Jenkins только из подтверждённой `main` branch;
+- Jenkins проверяет non-root image metadata до runtime smoke;
+- Docker process exit status и stdout contract в Jenkins проверяются раздельно;
 - quality/test/build/runtime/security/publish failures не маскируются notification или cleanup-логикой;
 - notification transport — вспомогательный observability signal;
 - weekly baseline validation перепроверяет mutable runtime/security state без необходимости ждать code change;
