@@ -6,10 +6,16 @@ from collections.abc import Sequence
 
 
 IMAGE = "qa-ci-smoke:local"
-EXPECTED_OUTPUT = "Hello from Docker! The application is running successfully."
+EXPECTED_OUTPUT = (
+    "Hello from Docker! The application is running successfully."
+)
 
 
-def run(command: Sequence[str], *, capture: bool = False) -> subprocess.CompletedProcess[str]:
+def run(
+    command: Sequence[str],
+    *,
+    capture: bool = False,
+) -> subprocess.CompletedProcess[str]:
     print(f"+ {' '.join(command)}", flush=True)
     return subprocess.run(
         list(command),
@@ -21,19 +27,32 @@ def run(command: Sequence[str], *, capture: bool = False) -> subprocess.Complete
 
 def verify_python_runtime() -> None:
     if sys.version_info < (3, 12):
+        current = sys.version.split()[0]
         raise RuntimeError(
-            f"Python 3.12+ is required; current runtime is {sys.version.split()[0]}"
+            f"Python 3.12+ is required; current runtime is {current}"
         )
     print(f"Python runtime: {sys.version.split()[0]}")
 
 
 def verify_non_root_image() -> None:
     result = run(
-        ["docker", "image", "inspect", IMAGE, "--format", "{{.Config.User}}"],
+        [
+            "docker",
+            "image",
+            "inspect",
+            IMAGE,
+            "--format",
+            "{{.Config.User}}",
+        ],
         capture=True,
     )
     configured_user = result.stdout.strip()
-    if not configured_user or configured_user.lower() == "root" or configured_user == "0":
+    is_root = (
+        not configured_user
+        or configured_user.lower() == "root"
+        or configured_user == "0"
+    )
+    if is_root:
         raise RuntimeError(
             "Docker image must declare a non-root runtime user; "
             f"got {configured_user or '<empty>'!r}"
@@ -87,13 +106,20 @@ def main() -> int:
         cleanup_image()
 
     print("Local quality preflight: PASS")
-    print("Note: the blocking Trivy security gate remains owned by GitHub Actions.")
+    print(
+        "Note: the blocking Trivy security gate remains owned "
+        "by GitHub Actions."
+    )
     return 0
 
 
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except (RuntimeError, subprocess.CalledProcessError, FileNotFoundError) as exc:
+    except (
+        RuntimeError,
+        subprocess.CalledProcessError,
+        FileNotFoundError,
+    ) as exc:
         print(f"Local quality preflight: FAIL: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
