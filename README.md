@@ -38,10 +38,10 @@ flowchart LR
 
 | Gate | Что подтверждает |
 | --- | --- |
-| `Quality / Flake8` | Python-код и тесты проходят статическую проверку |
+| `Quality / Flake8` | Python-код, тесты и local-preflight automation проходят статическую проверку |
 | `Tests / Pytest` | наблюдаемое поведение приложения соответствует контракту; JUnit XML сохраняется как CI evidence |
 | `Docker / Build + runtime smoke` | image реально собирается, контейнер стартует, возвращает ожидаемый результат и объявляет non-root runtime user |
-| `Security / Trivy container scan` | в образе нет исправляемых `CRITICAL` уязвимостей по политике проекта |
+| `Security / Trivy container scan` | в образе нет исправляемых `CRITICAL` уязвимостей по политике проекта; JSON evidence сохраняется независимо от результата scan |
 | `CI / Required gate` | все обязательные сигналы завершились успешно |
 
 Unit test и container smoke разделены намеренно: успешный Pytest не доказывает, что Docker packaging и runtime действительно исправны. Security scan также независим от функциональных проверок, поэтому риск уязвимостей виден отдельным merge-сигналом.
@@ -67,7 +67,7 @@ Scheduled run намеренно выполняет тот же полный н�
 
 Flake8, Pytest, Docker runtime validation и Trivy работают независимыми jobs. Финальный `CI / Required gate` агрегирует их результаты и предоставляет один стабильный сигнал для branch protection. При этом отдельные jobs остаются видимыми для диагностики причины failure.
 
-Pytest формирует JUnit XML, который сохраняется как GitHub Actions artifact на 14 дней. Это отделяет доказательство фактического test execution от консольного лога и делает результат доступным для последующего разбора.
+Pytest формирует JUnit XML, который сохраняется как GitHub Actions artifact на 14 дней. Trivy отдельно сохраняет JSON-report на 14 дней **до** финального enforcement шага: если security policy блокирует изменение, evidence остаётся доступным для triage вместо потери деталей вместе с failed step.
 
 Workflow использует read-only `contents` permission, явные timeouts и concurrency policy. Устаревшие PR-runs могут отменяться, а post-merge и scheduled runs доводятся до конца, чтобы сохранять подтверждение состояния основной ветки и текущего runtime baseline.
 
@@ -147,7 +147,7 @@ Telegram failure в Jenkins не скрывает результат линти�
 | Tests | Pytest 9 |
 | Test evidence | JUnit XML artifacts |
 | Static analysis | Flake8 |
-| Container security | Trivy |
+| Container security | Trivy + retained JSON evidence |
 | Containerization | Docker |
 | Registry | Docker Hub |
 | Notifications | Telegram Bot API |
@@ -169,6 +169,8 @@ my-docker-project/
 │       └── telegram-test.yml
 ├── docs/
 │   └── pipeline-incident-runbook.md
+├── scripts/
+│   └── verify-local.py
 ├── .dockerignore
 ├── .gitattributes
 ├── .gitignore
@@ -198,11 +200,31 @@ Development tools зафиксированы в `requirements-dev.txt`:
 ```bash
 python -m pip install --disable-pip-version-check -r requirements-dev.txt
 python -m pip check
-python -m flake8 app.py test_app.py --count --statistics
+python -m flake8 app.py test_app.py scripts/verify-local.py --count --statistics
 python -m pytest -q
 ```
 
 Dependabot проверяет Python dependencies, GitHub Actions и Docker base image по расписанию. Обновления приходят Pull Requests и проходят те же quality gates, что обычные изменения. Major/runtime upgrades не auto-merge: compatibility должна быть доказана CI.
+
+## Локальный quality preflight
+
+После установки pinned development dependencies основной локальный preflight запускается одной командой:
+
+```bash
+python scripts/verify-local.py
+```
+
+Он fail-fast проверяет:
+
+- Python 3.12+;
+- `pip check`;
+- Flake8 для приложения, теста и самого preflight script;
+- Pytest;
+- Docker build;
+- declared non-root runtime user;
+- точный stdout contract контейнера.
+
+Временный локальный image удаляется в `finally` cleanup даже при ошибке одного из validation steps. Blocking Trivy policy намеренно остаётся в GitHub Actions: локальный preflight не выдаёт ложного обещания, что security gate был выполнен без CI scanner/evidence path.
 
 ## Локальный Docker smoke
 
@@ -228,6 +250,7 @@ Hello from Docker! The application is running successfully.
 
 - secrets и пароли не хранятся в репозитории;
 - Trivy — отдельный blocking signal для fixable `CRITICAL` container vulnerabilities;
+- Trivy JSON evidence сохраняется как Actions artifact на 14 дней до enforcement результата;
 - Docker image публикуется Jenkins только из подтверждённой `main` branch;
 - Jenkins проверяет non-root image metadata до runtime smoke;
 - Docker process exit status и stdout contract в Jenkins проверяются раздельно;
@@ -242,7 +265,7 @@ Hello from Docker! The application is running successfully.
 
 ## Почему это QA-проект
 
-Здесь проверяется не только код функции. Проект демонстрирует инженерный контроль качества delivery chain: независимые quality gates, deterministic aggregate result, retained test evidence, runtime smoke после сборки контейнера, non-root runtime policy, security scanning, dependency maintenance, scheduled baseline revalidation, controlled main-only publishing, failure semantics, incident response и диагностируемые уведомления.
+Здесь проверяется не только код функции. Проект демонстрирует инженерный контроль качества delivery chain: независимые quality gates, deterministic aggregate result, retained test/security evidence, runtime smoke после сборки контейнера, non-root runtime policy, security scanning, dependency maintenance, scheduled baseline revalidation, controlled main-only publishing, failure semantics, incident response и диагностируемые уведомления.
 
 ---
 
