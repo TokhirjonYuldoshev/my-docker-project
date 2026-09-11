@@ -4,7 +4,7 @@
 
 Небольшой, но инженерно оформленный QA/DevOps portfolio-проект, который показывает два независимых пути автоматизации качества:
 
-- **GitHub Actions CI** проверяет каждый Pull Request и push в `main` через Flake8, Pytest, Docker runtime smoke, non-root runtime assertion и blocking security gate на Trivy;
+- **GitHub Actions CI** проверяет каждый Pull Request и push в `main` через Flake8, Pytest, Docker runtime smoke, non-root runtime assertion и blocking security gate на Trivy; тот же baseline перепроверяется по weekly schedule, чтобы видеть drift базового image и security state даже без изменения репозитория;
 - **Jenkins delivery pipeline** повторяет quality gates, собирает и smoke-тестирует Docker image, а публикацию versioned image в Docker Hub разрешает только из `main`;
 - **Telegram observability** для GitHub Actions вынесена в отдельный job и не может подменить реальный CI result.
 
@@ -59,17 +59,34 @@ Docker container запускает приложение не от `root`; GitHu
 
 - Pull Request;
 - push в `main`;
-- ручной `workflow_dispatch`.
+- ручной `workflow_dispatch`;
+- weekly baseline validation по воскресеньям в **03:30 UTC**.
+
+Scheduled run намеренно выполняет тот же полный набор gate'ов. Это позволяет поймать изменение mutable Docker base image, новый fixable `CRITICAL` finding или инфраструктурный drift даже когда commit в репозитории не менялся.
 
 Flake8, Pytest, Docker runtime validation и Trivy работают независимыми jobs. Финальный `CI / Required gate` агрегирует их результаты и предоставляет один стабильный сигнал для branch protection. При этом отдельные jobs остаются видимыми для диагностики причины failure.
 
 Pytest формирует JUnit XML, который сохраняется как GitHub Actions artifact на 14 дней. Это отделяет доказательство фактического test execution от консольного лога и делает результат доступным для последующего разбора.
 
-Workflow использует read-only `contents` permission, явные timeouts и concurrency policy. Устаревшие PR-runs могут отменяться, а post-merge run на `main` доводится до конца, чтобы сохранять подтверждение состояния основной ветки.
+Workflow использует read-only `contents` permission, явные timeouts и concurrency policy. Устаревшие PR-runs могут отменяться, а post-merge и scheduled runs доводятся до конца, чтобы сохранять подтверждение состояния основной ветки и текущего runtime baseline.
+
+## Operational incident response
+
+[`docs/pipeline-incident-runbook.md`](docs/pipeline-incident-runbook.md) фиксирует порядок triage по владельцу сигнала, а не по принципу «перезапустить пока не позеленеет».
+
+Runbook определяет:
+
+- ownership для Flake8, Pytest, Docker runtime, Trivy, aggregate gate, Jenkins publish и Telegram;
+- порядок разбора deterministic, delivery-infrastructure и external runner/platform failures;
+- severity model и resolution criteria;
+- правило максимум одного targeted diagnostic rerun после подтверждённого external recovery;
+- anti-patterns: никакого gate weakening, произвольных sleeps/retries или suppress fixable `CRITICAL` findings.
+
+Для фиксации таких случаев есть структурированный `.github/ISSUE_TEMPLATE/pipeline_incident.yml`: issue требует указать owning signal, severity, revision, evidence, reproducibility и impact, а также подтвердить отсутствие секретов и masking-workarounds.
 
 ## Telegram-уведомления GitHub Actions
 
-После push в `main` и ручного запуска отдельный `Telegram Notification` job отправляет компактный итог:
+После push в `main`, ручного и weekly scheduled запуска отдельный `Telegram Notification` job отправляет компактный итог:
 
 - общий статус pipeline;
 - Flake8 / Pytest / Docker smoke / Trivy / Required gate;
@@ -139,10 +156,14 @@ my-docker-project/
 ├── .github/
 │   ├── CODEOWNERS
 │   ├── dependabot.yml
+│   ├── ISSUE_TEMPLATE/
+│   │   └── pipeline_incident.yml
 │   ├── pull_request_template.md
 │   └── workflows/
 │       ├── ci.yml
 │       └── telegram-test.yml
+├── docs/
+│   └── pipeline-incident-runbook.md
 ├── .dockerignore
 ├── .gitattributes
 ├── .gitignore
@@ -157,13 +178,13 @@ my-docker-project/
 └── README.md
 ```
 
-`CONTRIBUTING.md` фиксирует change/validation policy, `SECURITY.md` — security boundaries и работу с секретами, а `CODEOWNERS` делает ownership критичных CI/CD-файлов явным.
+`CONTRIBUTING.md` фиксирует change/validation policy, `SECURITY.md` — security boundaries и работу с секретами, `CODEOWNERS` делает ownership критичных CI/CD-файлов явным, а incident runbook и issue form задают единый operational triage contract.
 
 ## Test scope
 
 Приложение намеренно небольшое. Unit test проверяет observable contract функции `get_message()`.
 
-Цель проекта — не искусственно увеличивать количество тестов, а продемонстрировать **качество pipeline design**: статический анализ, test gate, сохраняемое test evidence, Docker packaging, runtime verification, non-root policy, container security, controlled delivery, cleanup и observability.
+Цель проекта — не искусственно увеличивать количество тестов, а продемонстрировать **качество pipeline design**: статический анализ, test gate, сохраняемое test evidence, Docker packaging, runtime verification, non-root policy, container security, controlled delivery, cleanup, observability и operational incident response.
 
 ## Dependency management
 
@@ -204,14 +225,16 @@ Hello from Docker! The application is running successfully.
 - Docker image публикуется Jenkins только из подтверждённой `main` branch;
 - quality/test/build/runtime/security/publish failures не маскируются notification или cleanup-логикой;
 - notification transport — вспомогательный observability signal;
+- weekly baseline validation перепроверяет mutable runtime/security state без необходимости ждать code change;
 - политика раскрытия security-проблем описана в `SECURITY.md`;
 - contribution/validation policy описана в `CONTRIBUTING.md`;
 - ownership ключевых automation-файлов зафиксирован в `.github/CODEOWNERS`;
-- PR template заставляет явно оценивать CI/runtime/security risk изменения.
+- PR template заставляет явно оценивать CI/runtime/security risk изменения;
+- operational triage и severity model зафиксированы в `docs/pipeline-incident-runbook.md` и incident issue form.
 
 ## Почему это QA-проект
 
-Здесь проверяется не только код функции. Проект демонстрирует инженерный контроль качества delivery chain: независимые quality gates, deterministic aggregate result, retained test evidence, runtime smoke после сборки контейнера, non-root runtime policy, security scanning, dependency maintenance, controlled main-only publishing, failure semantics и диагностируемые уведомления.
+Здесь проверяется не только код функции. Проект демонстрирует инженерный контроль качества delivery chain: независимые quality gates, deterministic aggregate result, retained test evidence, runtime smoke после сборки контейнера, non-root runtime policy, security scanning, dependency maintenance, scheduled baseline revalidation, controlled main-only publishing, failure semantics, incident response и диагностируемые уведомления.
 
 ---
 
