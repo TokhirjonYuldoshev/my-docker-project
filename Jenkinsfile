@@ -111,11 +111,13 @@ endlocal
         stage('Push Docker Image') {
             when {
                 expression {
-                    return env.BRANCH_NAME == 'main' || env.GIT_BRANCH == 'origin/main'
+                    def mainRefs = ['main', 'origin/main', 'refs/heads/main', 'refs/remotes/origin/main']
+                    return mainRefs.contains(env.BRANCH_NAME) || mainRefs.contains(env.GIT_BRANCH)
                 }
             }
             steps {
                 script {
+                    echo "Publishing Docker image from verified main ref: BRANCH_NAME=${env.BRANCH_NAME ?: '<unset>'}, GIT_BRANCH=${env.GIT_BRANCH ?: '<unset>'}"
                     withCredentials([
                         usernamePassword(
                             credentialsId: 'docker-hub-credentials',
