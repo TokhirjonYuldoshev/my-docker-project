@@ -43,7 +43,7 @@ The image must declare a non-root runtime user and the container output must be 
 Hello from Docker! The application is running successfully.
 ```
 
-The blocking Trivy policy is enforced in GitHub Actions. Container/security changes are not ready to merge until the `Security / Trivy container scan` and aggregate `CI / Required gate` checks are green. CI retains the Trivy JSON report as security evidence and Pytest JUnit XML as test evidence.
+The blocking Trivy policy is enforced in GitHub Actions. Container/security changes are not ready to merge until the `Security / Trivy container scan` and aggregate `CI / Required gate` checks are green. CI retains the Trivy JSON report and CycloneDX container SBOM as security/supply-chain evidence, and Pytest JUnit XML as test evidence.
 
 ## Change policy
 
@@ -65,7 +65,7 @@ A pull request is ready to merge when:
 2. local preflight is complete where applicable;
 3. GitHub Actions reports green dependency integrity/Flake8, Pytest, Docker runtime/non-root and Trivy jobs;
 4. `CI / Required gate` is green;
-5. retained artifacts exist where applicable (JUnit and Trivy evidence);
+5. retained artifacts exist where applicable (JUnit XML, Trivy JSON and CycloneDX SBOM evidence);
 6. any runtime/dependency/security impact is documented;
 7. no secrets or generated local artifacts are included.
 
