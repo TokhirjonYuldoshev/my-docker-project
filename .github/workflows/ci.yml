@@ -133,6 +133,19 @@ jobs:
           exit-code: '1'
           timeout: 5m0s
 
+      - name: Generate CycloneDX container SBOM
+        id: sbom_generation
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.74.0
+          scan-type: image
+          image-ref: qa-ci-security:${{ github.sha }}
+          format: cyclonedx
+          output: reports/sbom.cdx.json
+          exit-code: '0'
+          timeout: 5m0s
+
       - name: Upload Trivy security evidence
         if: ${{ always() }}
         uses: actions/upload-artifact@v7
@@ -142,10 +155,20 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+      - name: Upload CycloneDX SBOM evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: container-sbom-${{ github.run_id }}
+          path: reports/sbom.cdx.json
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Publish Trivy evidence summary
         if: ${{ always() }}
         env:
           TRIVY_OUTCOME: ${{ steps.trivy_scan.outcome }}
+          SBOM_OUTCOME: ${{ steps.sbom_generation.outcome }}
         run: |
           set -u
           if [[ -s reports/trivy.json ]]; then
@@ -159,17 +182,24 @@ jobs:
             echo "- Scanner outcome: **${TRIVY_OUTCOME:-not-run}**"
             echo "- Policy: fixable CRITICAL vulnerabilities are blocking"
             echo "- Reported CRITICAL findings: **${CRITICAL_COUNT}**"
-            echo "- Evidence: \`trivy-critical-${GITHUB_RUN_ID}\` artifact (14 days)"
+            echo "- Vulnerability evidence: \`trivy-critical-${GITHUB_RUN_ID}\` artifact (14 days)"
+            echo "- SBOM generation: **${SBOM_OUTCOME:-not-run}**"
+            echo "- Supply-chain evidence: \`container-sbom-${GITHUB_RUN_ID}\` CycloneDX artifact (14 days)"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Enforce Trivy security result
+      - name: Enforce security evidence result
         if: ${{ always() }}
         env:
           TRIVY_OUTCOME: ${{ steps.trivy_scan.outcome }}
+          SBOM_OUTCOME: ${{ steps.sbom_generation.outcome }}
         run: |
           set -euo pipefail
           if [[ "$TRIVY_OUTCOME" != 'success' ]]; then
             echo "Trivy security scan finished with outcome: $TRIVY_OUTCOME" >&2
+            exit 1
+          fi
+          if [[ "$SBOM_OUTCOME" != 'success' ]]; then
+            echo "CycloneDX SBOM generation finished with outcome: $SBOM_OUTCOME" >&2
             exit 1
           fi
 
@@ -221,7 +251,7 @@ jobs:
           | Dependency integrity + Flake8 | $(status_ru "$QUALITY_RESULT") |
           | Pytest + JUnit evidence | $(status_ru "$TESTS_RESULT") |
           | Docker build + runtime smoke + non-root assertion | $(status_ru "$DOCKER_RESULT") |
-          | Trivy / fixable CRITICAL | $(status_ru "$SECURITY_RESULT") |
+          | Trivy CRITICAL policy + CycloneDX SBOM evidence | $(status_ru "$SECURITY_RESULT") |
 
           **Контекст:** `${GITHUB_REPOSITORY}` · `${BRANCH}` · commit `${SHORT_SHA}` · `${GITHUB_EVENT_NAME}`  
           **Run:** [открыть GitHub Actions](${RUN_URL})
@@ -321,7 +351,7 @@ jobs:
           MESSAGE+=$'\n'"• Dependency integrity + Flake8: $(status_ru "$QUALITY_RESULT")"
           MESSAGE+=$'\n'"• Pytest: $(status_ru "$TESTS_RESULT")"
           MESSAGE+=$'\n'"• Docker runtime smoke: $(status_ru "$DOCKER_RESULT")"
-          MESSAGE+=$'\n'"• Trivy security: $(status_ru "$SECURITY_RESULT")"
+          MESSAGE+=$'\n'"• Trivy security + SBOM evidence: $(status_ru "$SECURITY_RESULT")"
           MESSAGE+=$'\n'"• Required gate: $(status_ru "$GATE_RESULT")"
           MESSAGE+=$'\n\n'"🔗 <a href=\"${RUN_URL}\">Открыть GitHub Actions run #${GITHUB_RUN_NUMBER}</a>"
 
