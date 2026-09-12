@@ -1,75 +1,75 @@
-# CI/CD Pipeline Incident Runbook
+# Runbook по инцидентам CI/CD-пайплайна
 
-This runbook defines deterministic triage for the repository's independent quality and delivery signals. The goal is to fix the owning layer, preserve evidence, and prevent auxiliary systems from hiding a real failure.
+Этот документ задаёт детерминированный triage независимых quality и delivery signals. Цель — исправить owning layer, сохранить evidence и не позволить вспомогательным системам скрыть реальный failure.
 
-## Signal ownership
+## Владельцы сигналов
 
-| Signal | Source of truth | Blocking? | First triage action |
+| Сигнал | Source of truth | Блокирует | Первое действие |
 | --- | --- | --- | --- |
-| Flake8 | `Quality / Flake8` | Yes | Inspect static-analysis output and changed Python files |
-| Pytest | `Tests / Pytest` | Yes | Inspect failing assertion/test collection and JUnit evidence |
-| Docker build/runtime | `Docker / Build + runtime smoke` | Yes | Separate image-build failure from container-start/output failure |
-| Container security | Trivy/security gate | Yes when configured as required | Identify fixable CRITICAL vulnerability and affected layer/package |
-| Aggregate CI gate | `CI / Required gate` | Yes | Trace back to the first non-success required signal |
-| Jenkins publish | Jenkins delivery stage | Yes for delivery | Separate pre-publish quality failure from registry/auth/push failure |
-| Telegram | notification/diagnostic workflow | No | Treat as observability transport, not build health |
+| Flake8 | `Quality / Flake8` | Да | Проверить static-analysis output и изменённые Python files |
+| Pytest | `Tests / Pytest` | Да | Проверить failing assertion/collection и JUnit evidence |
+| Docker build/runtime | `Docker / Build + runtime smoke` | Да | Разделить image-build failure и container runtime/output failure |
+| Container security | `Security / Trivy container scan` | Да | Найти fixable `CRITICAL` и affected layer/package |
+| Aggregate CI gate | `CI / Required gate` | Да | Вернуться к первому обязательному upstream signal с non-success result |
+| Jenkins publish | Jenkins delivery stage | Да для delivery | Разделить pre-publish quality failure и registry/auth/push failure |
+| Telegram | notification/diagnostic workflow | Нет | Считать observability transport, а не build health |
 
-## Triage order
+## Порядок triage
 
-1. Start from the aggregate result and identify the first required signal that failed.
-2. Open the owning job/stage and preserve its original logs and evidence.
-3. Classify the failure as code quality, test behavior, packaging/runtime, security, delivery infrastructure, or observability transport.
-4. Reproduce only the smallest failing path.
-5. Fix the owning layer; do not weaken a downstream gate to compensate.
-6. Validate through the same PR checks that detected the problem.
+1. Начните с aggregate result и найдите первый обязательный failing signal.
+2. Откройте owning job/stage и сохраните его исходные logs/evidence.
+3. Классифицируйте failure: code quality, test behavior, packaging/runtime, security, delivery infrastructure или observability transport.
+4. Воспроизводите только минимальный failing path.
+5. Исправьте owning layer; не ослабляйте downstream gate для компенсации.
+6. Проверьте исправление теми же PR checks, которые обнаружили проблему.
 
-## Static-analysis failure
+## Ошибка static analysis
 
-For Flake8 failures:
+Для Flake8 failure:
 
-- use the exact rule/code and file/line from CI;
-- change source/test code rather than suppressing the rule globally unless the rule is demonstrably incompatible with the project policy;
-- rerun Flake8 independently before interpreting test or Docker signals.
+- используйте точный rule/code и file/line из CI;
+- исправляйте source/test code, а не отключайте правило глобально, если нет доказанной несовместимости с project policy;
+- отдельно повторите Flake8 перед интерпретацией test или Docker signals.
 
-## Test failure
+## Ошибка теста
 
-For Pytest failures:
+Для Pytest failure:
 
-- distinguish collection/environment failures from assertion failures;
-- inspect the failing test, observed value, expected contract, and JUnit evidence;
-- do not modify the expected result merely to match an unexplained regression;
-- keep tests deterministic and independent.
+- отделите collection/environment problem от assertion failure;
+- проверьте failing test, observed value, expected contract и JUnit evidence;
+- не меняйте expected result только ради соответствия необъяснённой regression;
+- сохраняйте tests детерминированными и независимыми.
 
-## Docker build/runtime failure
+## Ошибка Docker build/runtime
 
-Build and runtime smoke are separate signals.
+Build и runtime smoke — разные сигналы.
 
-If build fails, inspect Dockerfile syntax, base-image availability, copied files, permissions, and build context.
+Если падает build, проверяйте Dockerfile syntax, base-image availability, copied files, permissions и build context.
 
-If build succeeds but runtime smoke fails, inspect:
+Если build успешен, но runtime smoke падает, проверяйте:
 
 - container exit code;
-- declared non-root runtime user and permissions;
+- declared non-root runtime user и permissions;
 - exact stdout contract;
 - entrypoint/CMD behavior;
 - runtime-only dependencies.
 
-A successful Docker build is not proof that the resulting container starts correctly.
+Успешный Docker build **не доказывает**, что container корректно запускается.
 
-## Container-security failure
+## Ошибка container security
 
-When the security gate reports a fixable CRITICAL vulnerability:
+Если security gate сообщает fixable `CRITICAL` vulnerability:
 
-1. identify whether it originates in the base image or project-installed package;
-2. prefer a patched compatible base/dependency version;
-3. rebuild and run the same runtime smoke after remediation;
-4. do not silence the finding merely to restore a green badge.
+1. определите, пришла она из base image или project-installed package;
+2. предпочитайте patched compatible base/dependency version;
+3. пересоберите image и повторите тот же runtime smoke;
+4. не suppress finding только ради green badge.
 
-If a finding is not fixable, document the exact advisory, exposure, compensating controls, and review date before changing enforcement policy.
+Если finding не имеет исправления, перед изменением enforcement policy документируются exact advisory, exposure, compensating controls и review date.
 
-## Jenkins delivery failure
+## Ошибка Jenkins delivery
 
-Classify the failing stage first:
+Сначала классифицируйте failing stage:
 
 - runtime/version validation;
 - dependency installation;
@@ -79,57 +79,57 @@ Classify the failing stage first:
 - cleanup;
 - Telegram notification.
 
-Quality/test/runtime failures are product/pipeline signals. Registry and network failures are delivery-infrastructure signals. Telegram is observability only.
+Quality/test/runtime failures — product/pipeline signals. Registry/network failures — delivery-infrastructure signals. Telegram — только observability.
 
-Never push an image after a required quality or runtime gate failed.
+Нельзя публиковать image после failure обязательного quality или runtime gate.
 
-## Telegram-only failure
+## Только Telegram failure
 
-If all required build/test/security gates are green but Telegram delivery fails:
+Если все обязательные build/test/security gates зелёные, а Telegram delivery упал:
 
-- preserve the successful pipeline result;
-- use the manual Telegram diagnostic workflow to validate token, chat target, and API delivery independently;
-- do not fail or weaken the product pipeline solely because notification transport is unavailable.
+- успешный pipeline result сохраняется;
+- manual Telegram diagnostic workflow проверяет token, chat target и API delivery отдельно;
+- product pipeline не ослабляется и не объявляется failed только из-за notification transport.
 
 ## External runner/platform incident
 
-Evidence of an external incident includes failure before project logic executes, runner provisioning errors, registry/service outages, or unrelated network/package infrastructure errors.
+Evidence внешнего incident: failure до project logic, runner provisioning error, registry/service outage или unrelated network/package infrastructure problem.
 
-Policy:
+Политика:
 
-- preserve the original run;
-- confirm the project revision itself did not introduce the failing behavior;
-- allow at most one targeted diagnostic rerun after concrete evidence that the external condition recovered;
-- never loop reruns until a random green result appears;
-- never add arbitrary sleeps/retries as a permanent workaround for an external incident.
+- сохранить original run;
+- подтвердить, что project revision не внесла failing behavior;
+- разрешить максимум один targeted diagnostic rerun после concrete evidence восстановления внешнего условия;
+- не перезапускать до случайного green;
+- не добавлять permanent arbitrary sleep/retry как workaround.
 
-## Severity model
+## Модель severity
 
-| Severity | Example | Response |
+| Severity | Пример | Реакция |
 | --- | --- | --- |
-| SEV-1 | Published image is known broken or critically vulnerable | Stop delivery/use; remediate immediately |
-| SEV-2 | Required CI/security/runtime gate is broken on `main` | Block further delivery and restore the gate |
-| SEV-3 | Docker Hub/Jenkins delivery unavailable while PR validation is healthy | Repair delivery path without weakening validation |
-| SEV-4 | Telegram/reporting presentation issue only | Repair observability through normal change flow |
+| SEV-1 | Опубликованный image заведомо сломан или критически уязвим | Остановить delivery/use и исправить немедленно |
+| SEV-2 | Required CI/security/runtime gate сломан на `main` | Блокировать дальнейший delivery и восстановить gate |
+| SEV-3 | Docker Hub/Jenkins недоступен при здоровой PR validation | Исправить delivery path без ослабления validation |
+| SEV-4 | Только Telegram/reporting presentation issue | Исправить observability обычным change flow |
 
-## Resolution criteria
+## Критерии закрытия
 
-An incident is resolved only when:
+Incident закрыт только когда:
 
-- the owning signal passes on the corrected revision;
-- the aggregate gate reflects upstream results correctly;
-- runtime/security evidence remains intact;
-- no sleep, retry inflation, blanket ignore, or notification workaround masks the root cause;
-- any newly discovered operational rule is documented.
+- owning signal проходит на corrected revision;
+- aggregate gate корректно отражает upstream results;
+- runtime/security evidence сохранено;
+- sleep, retry inflation, blanket ignore или notification workaround не маскируют root cause;
+- новое operational rule, выявленное incident, задокументировано.
 
-## Anti-patterns
+## Запрещённые практики
 
-Do not:
+Нельзя:
 
-- merge because unrelated jobs are green while a required gate is red;
-- interpret a successful build as proof of a healthy runtime;
-- publish after failing lint/tests/runtime/security validation;
-- downgrade fixable CRITICAL vulnerabilities to cosmetic warnings;
-- make Telegram a prerequisite for build health;
-- rerun repeatedly until CI happens to pass;
-- broaden ignore/suppression rules without a documented reason and scope.
+- мержить только потому, что unrelated jobs green, если required gate red;
+- считать successful build доказательством healthy runtime;
+- публиковать image после failing lint/tests/runtime/security validation;
+- превращать fixable `CRITICAL` в косметический warning;
+- делать Telegram prerequisite для build health;
+- repeatedly rerun до случайного pass;
+- расширять ignore/suppression без документированного reason и scope.
