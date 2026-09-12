@@ -1,31 +1,33 @@
-# Security Policy
+# Политика безопасности
 
-This repository is a public QA/DevOps portfolio project. It contains CI, container, Jenkins and notification examples, but it must not contain real credentials.
+Это публичный QA/DevOps портфолио-проект с примерами CI, Docker, Jenkins и notification integration. Реальные credentials в репозитории **не допускаются**.
 
-## Supported state
+## Поддерживаемое состояние
 
-Security fixes are applied to the current `main` branch. Historical commits and old portfolio branches are not maintained as separate supported versions.
+Security fixes применяются к текущей ветке `main`. Исторические commits и старые portfolio branches не поддерживаются как отдельные версии.
 
-## Reporting a security concern
+## Как сообщить о проблеме безопасности
 
-If you find a security issue in the repository configuration, dependency setup, Docker image, Jenkins pipeline or credential handling:
+Если найдена проблема в repository configuration, dependency setup, Docker image, Jenkins pipeline или credential handling:
 
-1. do **not** publish real tokens, passwords, private registry credentials or other secrets in an issue, pull request, screenshot or log;
-2. describe the affected file/component and the observable risk without including secret material;
-3. use a private contact method listed on the maintainer's GitHub profile when the report itself contains sensitive information.
+1. **не публикуйте** реальные tokens, passwords, private registry credentials или другие secrets в Issue, Pull Request, screenshot или log;
+2. опишите затронутый file/component и observable risk без чувствительных значений;
+3. если сам report содержит sensitive information, используйте приватный контакт из GitHub-профиля владельца.
 
-For an accidentally exposed credential, the first response is **revocation/rotation of the credential**, not merely deleting the Git line that contained it.
+При случайном раскрытии credential первое действие — **revocation/rotation**, а не только удаление строки из Git. Значение могло остаться в истории.
 
-## CI security controls
+## Текущие security controls
 
-The repository currently uses independent security/quality signals:
+Репозиторий использует независимые security/quality signals:
 
-- pinned development dependencies with controlled Dependabot update pull requests;
-- a Docker base-image update stream;
-- a Trivy container scan that blocks fixable CRITICAL vulnerabilities;
-- a non-root application user in the runtime image;
-- read-only `contents` permission in GitHub Actions;
-- Docker Hub and Telegram secrets supplied through Jenkins Credentials rather than repository files;
-- an aggregate `CI / Required gate` that cannot pass when its security dependency fails.
+- pinned development dependencies и controlled Dependabot Pull Requests;
+- отдельный update stream для Docker base image;
+- Trivy container scan, блокирующий fixable `CRITICAL` vulnerabilities;
+- CycloneDX container SBOM как supply-chain evidence;
+- non-root application user в runtime image;
+- read-only `contents` permission в GitHub Actions;
+- Docker Hub и Telegram secrets через Jenkins Credentials, а не repository files;
+- GitHub Actions Telegram credentials через repository secrets;
+- `CI / Required gate`, который не может стать green при failure обязательного security dependency.
 
-Security findings are treated as engineering signals. The preferred response is to remove or mitigate the underlying risk rather than weakening a gate solely to restore a green pipeline.
+Security findings рассматриваются как инженерные сигналы. Предпочтительное действие — убрать или снизить реальный риск, а не ослабить gate только ради зелёного pipeline.
