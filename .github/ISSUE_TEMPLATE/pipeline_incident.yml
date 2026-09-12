@@ -1,17 +1,17 @@
-name: CI/CD pipeline incident
-description: Capture a quality, test, container, security, delivery, or observability failure with clear signal ownership and evidence.
+name: Инцидент CI/CD-пайплайна
+description: Зафиксировать quality, test, container, security, delivery или observability failure с понятным владельцем сигнала и evidence.
 title: "[Pipeline incident] "
 labels: []
 body:
   - type: markdown
     attributes:
       value: |
-        Use this form for CI/CD regressions and delivery incidents. Start from the first failing required signal; Telegram is observability and is not the source of truth for build health.
+        Используйте эту форму для CI/CD regressions и delivery incidents. Начинайте с первого обязательного failing signal; Telegram — observability и не является source of truth для build health.
 
   - type: dropdown
     id: signal
     attributes:
-      label: Owning signal
+      label: Владелец сигнала
       options:
         - Quality / Flake8
         - Tests / Pytest
@@ -20,8 +20,8 @@ body:
         - CI / Required gate
         - Jenkins delivery / Docker Hub publish
         - GitHub Actions runner/platform
-        - Telegram observability only
-        - Unknown / needs triage
+        - Только Telegram observability
+        - Неизвестно / нужен triage
     validations:
       required: true
 
@@ -30,10 +30,10 @@ body:
     attributes:
       label: Severity
       options:
-        - SEV-1 — published image broken or critically vulnerable
-        - SEV-2 — required CI/security/runtime gate broken on main
-        - SEV-3 — delivery path unavailable while PR validation is healthy
-        - SEV-4 — reporting/Telegram presentation or transport issue
+        - SEV-1 — опубликованный image сломан или критически уязвим
+        - SEV-2 — required CI/security/runtime gate сломан на main
+        - SEV-3 — delivery path недоступен при здоровой PR validation
+        - SEV-4 — проблема reporting/Telegram presentation или transport
     validations:
       required: true
 
@@ -41,8 +41,8 @@ body:
     id: run
     attributes:
       label: CI/Jenkins run
-      description: Paste a GitHub Actions run URL/ID or Jenkins build identifier when available.
-      placeholder: https://github.com/.../actions/runs/... or Jenkins #123
+      description: Укажите GitHub Actions run URL/ID или Jenkins build identifier, если доступен.
+      placeholder: https://github.com/.../actions/runs/... или Jenkins #123
 
   - type: input
     id: revision
@@ -55,16 +55,16 @@ body:
   - type: textarea
     id: observed
     attributes:
-      label: Observed behavior
-      description: Include the first failing stage/job, exit code, assertion, scan result, or delivery error.
+      label: Фактическое поведение
+      description: Укажите первый failing stage/job, exit code, assertion, scan result или delivery error.
     validations:
       required: true
 
   - type: textarea
     id: expected
     attributes:
-      label: Expected behavior / invariant
-      description: State the quality or delivery contract that should hold.
+      label: Ожидаемое поведение / инвариант
+      description: Опишите quality или delivery contract, который должен выполняться.
     validations:
       required: true
 
@@ -72,40 +72,40 @@ body:
     id: evidence
     attributes:
       label: Evidence
-      description: Include relevant logs, JUnit/scan evidence, container output, or platform evidence. Do not paste secrets.
+      description: Приложите релевантные logs, JUnit/scan evidence, container output или platform evidence. Не вставляйте secrets.
     validations:
       required: true
 
   - type: dropdown
     id: reproducibility
     attributes:
-      label: Reproducibility
+      label: Воспроизводимость
       options:
-        - Consistent
-        - Intermittent
-        - One occurrence
-        - Unknown
+        - Стабильно воспроизводится
+        - Периодически
+        - Один случай
+        - Неизвестно
     validations:
       required: true
 
   - type: textarea
     id: scope
     attributes:
-      label: Impact and scope
-      description: Explain which confidence/delivery path is affected and what remains healthy.
+      label: Влияние и область
+      description: Объясните, какой confidence/delivery path затронут и что остаётся healthy.
     validations:
       required: true
 
   - type: checkboxes
     id: discipline
     attributes:
-      label: Triage discipline
+      label: Дисциплина triage
       options:
-        - label: I identified the first failing owning signal rather than only the aggregate/notification result.
+        - label: Я определил первый failing owning signal, а не только aggregate/notification result.
           required: true
-        - label: I preserved the original failed run and available evidence.
+        - label: Я сохранил original failed run и доступное evidence.
           required: true
-        - label: I did not weaken required gates, suppress fixable critical findings, or add arbitrary retry/sleep workarounds.
+        - label: Я не ослаблял required gates, не suppress fixable critical findings и не добавлял arbitrary retry/sleep workarounds.
           required: true
-        - label: I did not include credentials, tokens, or registry secrets.
+        - label: Я не включил credentials, tokens или registry secrets.
           required: true
