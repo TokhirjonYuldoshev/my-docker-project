@@ -176,6 +176,7 @@ jobs:
           else
             CRITICAL_COUNT="unavailable"
           fi
+
           {
             echo "## Trivy container security evidence"
             echo
@@ -194,10 +195,12 @@ jobs:
           SBOM_OUTCOME: ${{ steps.sbom_generation.outcome }}
         run: |
           set -euo pipefail
+
           if [[ "$TRIVY_OUTCOME" != 'success' ]]; then
             echo "Trivy security scan finished with outcome: $TRIVY_OUTCOME" >&2
             exit 1
           fi
+
           if [[ "$SBOM_OUTCOME" != 'success' ]]; then
             echo "CycloneDX SBOM generation finished with outcome: $SBOM_OUTCOME" >&2
             exit 1
@@ -227,7 +230,10 @@ jobs:
             esac
           }
 
-          if [[ "$QUALITY_RESULT" == success && "$TESTS_RESULT" == success && "$DOCKER_RESULT" == success && "$SECURITY_RESULT" == success ]]; then
+          if [[ "$QUALITY_RESULT" == success &&
+                "$TESTS_RESULT" == success &&
+                "$DOCKER_RESULT" == success &&
+                "$SECURITY_RESULT" == success ]]; then
             OVERALL="✅ ВСЕ QUALITY GATES ПРОЙДЕНЫ"
             NOTE="Код, dependencies, тесты, Docker runtime и container security подтверждены."
           else
@@ -253,10 +259,10 @@ jobs:
           | Docker build + runtime smoke + non-root assertion | $(status_ru "$DOCKER_RESULT") |
           | Trivy CRITICAL policy + CycloneDX SBOM evidence | $(status_ru "$SECURITY_RESULT") |
 
-          **Контекст:** `${GITHUB_REPOSITORY}` · `${BRANCH}` · commit `${SHORT_SHA}` · `${GITHUB_EVENT_NAME}`  
+          **Контекст:** \`${GITHUB_REPOSITORY}\` · \`${BRANCH}\` · commit \`${SHORT_SHA}\` · \`${GITHUB_EVENT_NAME}\`  
           **Run:** [открыть GitHub Actions](${RUN_URL})
 
-          > ✈️ Telegram-уведомление после push в `main`, ручного и weekly scheduled запуска — отдельный observability signal и не подменяет CI result.
+          > ✈️ Telegram-уведомление после Pull Request, push в \`main\`, ручного и weekly scheduled запуска — отдельный observability signal и не подменяет CI result.
           EOF
 
       - name: Enforce aggregate result
@@ -267,6 +273,7 @@ jobs:
           SECURITY_RESULT: ${{ needs.security.result }}
         run: |
           set -euo pipefail
+
           for result in "$QUALITY_RESULT" "$TESTS_RESULT" "$DOCKER_RESULT" "$SECURITY_RESULT"; do
             if [[ "$result" != 'success' ]]; then
               echo "Required CI dependency finished with result: $result" >&2
@@ -276,7 +283,7 @@ jobs:
 
   notify:
     name: Telegram Notification
-    if: ${{ always() && github.event_name != 'pull_request' }}
+    if: ${{ always() }}
     needs: [quality, tests, docker, security, gate]
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -292,62 +299,66 @@ jobs:
           GATE_RESULT: ${{ needs.gate.result }}
         run: |
           if [[ -z "$TELEGRAM_BOT_TOKEN" || -z "$TELEGRAM_CHAT_ID" ]]; then
-          echo "::notice::Telegram secrets не настроены; уведомление пропущено."
-          {
-          echo "## ✈️ Telegram"
-          echo
-          echo "ℹ️ Уведомление пропущено: добавьте repository secrets TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID."
-          } >> "$GITHUB_STEP_SUMMARY"
-          exit 0
+            echo "::notice::Telegram secrets не настроены; уведомление пропущено."
+            {
+              echo "## ✈️ Telegram"
+              echo
+              echo "ℹ️ Уведомление пропущено: добавьте repository secrets TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID."
+              echo
+              echo "Для Pull Request из fork GitHub намеренно не передаёт repository secrets."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
 
           result_label() {
-          case "$1" in
-          success) echo "✅ Успешно" ;;
-          failure) echo "❌ Ошибка" ;;
-          cancelled) echo "⏹️ Отменено" ;;
-          skipped) echo "⏭️ Пропущено" ;;
-          *) echo "❔ ${1:-unknown}" ;;
-          esac
+            case "$1" in
+              success) echo "✅ Успешно" ;;
+              failure) echo "❌ Ошибка" ;;
+              cancelled) echo "⏹️ Отменено" ;;
+              skipped) echo "⏭️ Пропущено" ;;
+              *) echo "❔ ${1:-unknown}" ;;
+            esac
           }
 
           event_label() {
-          case "$1" in
-          push) echo "Push в репозиторий" ;;
-          workflow_dispatch) echo "Ручной запуск" ;;
-          schedule) echo "Еженедельная baseline-проверка" ;;
-          *) echo "$1" ;;
-          esac
+            case "$1" in
+              pull_request) echo "Pull Request" ;;
+              push) echo "Push в репозиторий" ;;
+              workflow_dispatch) echo "Ручной запуск" ;;
+              schedule) echo "Еженедельная baseline-проверка" ;;
+              *) echo "$1" ;;
+            esac
           }
 
           escape_html() {
-          local text="$1"
-          text="${text//&/&amp;}"
-          text="${text//</&lt;}"
-          text="${text//>/&gt;}"
-          printf '%s' "$text"
+            local text="$1"
+            text="${text//&/&amp;}"
+            text="${text//</&lt;}"
+            text="${text//>/&gt;}"
+            printf '%s' "$text"
           }
 
           if [[ "$GATE_RESULT" == "failure" ]]; then
-          OVERALL_ICON="❌"
-          OVERALL_TITLE="CI ТРЕБУЕТ ВНИМАНИЯ"
-          OVERALL_SUBTITLE="Один или несколько обязательных quality gates завершились с ошибкой"
+            OVERALL_ICON="❌"
+            OVERALL_TITLE="CI ТРЕБУЕТ ВНИМАНИЯ"
+            OVERALL_SUBTITLE="Один или несколько обязательных quality gates завершились с ошибкой"
           elif [[ "$GATE_RESULT" == "cancelled" ]]; then
-          OVERALL_ICON="⏹️"
-          OVERALL_TITLE="ЗАПУСК ОТМЕНЁН"
-          OVERALL_SUBTITLE="Выполнение CI было остановлено"
+            OVERALL_ICON="⏹️"
+            OVERALL_TITLE="ЗАПУСК ОТМЕНЁН"
+            OVERALL_SUBTITLE="Выполнение CI было остановлено"
           elif [[ "$GATE_RESULT" == "success" ]]; then
-          OVERALL_ICON="✅"
-          OVERALL_TITLE="ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ"
-          OVERALL_SUBTITLE="Качество, тесты, Docker runtime и security gates подтверждены"
+            OVERALL_ICON="✅"
+            OVERALL_TITLE="ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ"
+            OVERALL_SUBTITLE="Качество, тесты, Docker runtime и security gates подтверждены"
           else
-          OVERALL_ICON="⚠️"
-          OVERALL_TITLE="CI ЗАВЕРШЁН НЕ ПОЛНОСТЬЮ"
-          OVERALL_SUBTITLE="Часть обязательных сигналов была пропущена или не завершилась"
+            OVERALL_ICON="⚠️"
+            OVERALL_TITLE="CI ЗАВЕРШЁН НЕ ПОЛНОСТЬЮ"
+            OVERALL_SUBTITLE="Часть обязательных сигналов была пропущена или не завершилась"
           fi
 
           BRANCH="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
           RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
           REPOSITORY_HTML="$(escape_html "$GITHUB_REPOSITORY")"
           BRANCH_HTML="$(escape_html "$BRANCH")"
           ACTOR_HTML="$(escape_html "$GITHUB_ACTOR")"
@@ -384,31 +395,35 @@ jobs:
           )
 
           HTTP_CODE="$(curl --silent --show-error \
-          --retry 2 \
-          --retry-all-errors \
-          --connect-timeout 10 \
-          --max-time 20 \
-          --output /tmp/telegram-response.json \
-          --write-out '%{http_code}' \
-          --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
-          --data-urlencode "text=${MESSAGE}" \
-          --data-urlencode "parse_mode=HTML" \
-          --data-urlencode "disable_web_page_preview=true" \
-          "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" || true)"
+            --retry 2 \
+            --retry-all-errors \
+            --connect-timeout 10 \
+            --max-time 20 \
+            --output /tmp/telegram-response.json \
+            --write-out '%{http_code}' \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${MESSAGE}" \
+            --data-urlencode "parse_mode=HTML" \
+            --data-urlencode "disable_web_page_preview=true" \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" || true)"
 
-          if [[ "$HTTP_CODE" != "200" ]] || ! jq -e '.ok == true' /tmp/telegram-response.json >/dev/null 2>&1; then
-          echo "::warning::Telegram sendMessage не подтвердил доставку (HTTP ${HTTP_CODE:-transport-error}). Результат CI сохранён."
-          {
-          echo "## ✈️ Telegram"
-          echo
-          echo "⚠️ CI завершён, но Telegram не подтвердил доставку уведомления."
-          } >> "$GITHUB_STEP_SUMMARY"
-          exit 0
+          if [[ "$HTTP_CODE" != "200" ]] ||
+             ! jq -e '.ok == true' /tmp/telegram-response.json >/dev/null 2>&1; then
+            echo "::warning::Telegram sendMessage не подтвердил доставку (HTTP ${HTTP_CODE:-transport-error}). Результат CI сохранён."
+
+            {
+              echo "## ✈️ Telegram"
+              echo
+              echo "⚠️ CI завершён, но Telegram не подтвердил доставку уведомления."
+            } >> "$GITHUB_STEP_SUMMARY"
+
+            exit 0
           fi
 
           {
-          echo "## ✈️ Telegram"
-          echo
-          echo "✅ Итог CI отправлен в Telegram в едином формате портфолио."
+            echo "## ✈️ Telegram"
+            echo
+            echo "✅ Итог CI отправлен в Telegram в едином формате портфолио."
           } >> "$GITHUB_STEP_SUMMARY"
+
           echo "Telegram notification sent."
