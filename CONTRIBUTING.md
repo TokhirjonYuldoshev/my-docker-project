@@ -1,32 +1,32 @@
-# Contributing
+# Правила внесения изменений
 
-This repository is a compact QA/DevOps portfolio project. Changes should stay small, reviewable and evidence-driven.
+Этот репозиторий — компактный QA/DevOps портфолио-проект. Изменения должны оставаться небольшими, понятными для review и подтверждаться evidence.
 
 ## Development baseline
 
 - Python 3.12+
 - Docker
 - Git
-- Jenkins only when validating the delivery pipeline locally/in a Jenkins agent
+- Jenkins — только когда требуется проверить delivery pipeline локально или на Jenkins agent
 
-Install the pinned development tools:
+Установка зафиксированных development tools:
 
 ```bash
 python -m pip install --disable-pip-version-check -r requirements-dev.txt
 python -m pip check
 ```
 
-## Required local validation
+## Обязательная локальная проверка
 
-The preferred deterministic preflight is:
+Предпочтительный детерминированный preflight:
 
 ```bash
 python scripts/verify-local.py
 ```
 
-It verifies the Python 3.12+ runtime, installed dependency consistency, Flake8, Pytest, Docker build, declared non-root image user and the exact container stdout contract. The temporary local image is removed in cleanup even when a validation step fails.
+Он проверяет Python 3.12+, dependency consistency, Flake8, Pytest, Docker build, declared non-root image user и exact container stdout contract. Temporary local image удаляется в cleanup даже при failure.
 
-Equivalent individual checks are:
+Эквивалентные отдельные команды:
 
 ```bash
 python -m pip check
@@ -37,42 +37,42 @@ docker image inspect qa-ci-smoke:local --format '{{.Config.User}}'
 docker run --rm qa-ci-smoke:local
 ```
 
-The image must declare a non-root runtime user and the container output must be exactly:
+Image должен объявлять non-root runtime user, а stdout container должен точно совпадать с:
 
 ```text
 Hello from Docker! The application is running successfully.
 ```
 
-The blocking Trivy policy is enforced in GitHub Actions. Container/security changes are not ready to merge until the `Security / Trivy container scan` and aggregate `CI / Required gate` checks are green. CI retains the Trivy JSON report and CycloneDX container SBOM as security/supply-chain evidence, and Pytest JUnit XML as test evidence.
+Blocking Trivy policy выполняется в GitHub Actions. Container/security change не готов к merge, пока `Security / Trivy container scan` и aggregate `CI / Required gate` не стали green. CI сохраняет Trivy JSON и CycloneDX SBOM как security/supply-chain evidence, а Pytest JUnit XML — как test evidence.
 
-## Change policy
+## Политика изменений
 
-- Prefer one focused concern per pull request.
-- Do not bypass failing dependency-integrity, Flake8, Pytest, Docker runtime, non-root or Trivy gates.
-- Do not weaken a test/security threshold only to make CI green.
-- Do not add retries, sleeps or notification fallbacks that can mask the owning quality signal.
-- Dependency updates must keep the documented Python runtime contract valid.
-- Keep credentials out of source control. GitHub Actions Telegram secrets belong in repository secrets; Docker Hub and Jenkins Telegram credentials belong in Jenkins Credentials.
-- Notification delivery is auxiliary observability; it must not hide the underlying build/test/security result.
-- Docker Hub publishing remains a delivery action restricted to verified `main` refs.
-- When behavior changes, update the relevant documentation in the same pull request.
+- Один Pull Request — одна сфокусированная задача.
+- Нельзя обходить failing dependency-integrity, Flake8, Pytest, Docker runtime, non-root или Trivy gate.
+- Нельзя ослаблять test/security threshold только ради green CI.
+- Не добавляйте retry, sleep или notification fallback, способные замаскировать owning quality signal.
+- Dependency updates должны сохранять documented Python runtime contract.
+- Credentials не хранятся в source control. GitHub Actions Telegram secrets находятся в repository secrets; Docker Hub и Jenkins Telegram credentials — в Jenkins Credentials.
+- Notification delivery — вспомогательная observability и не должна скрывать build/test/security result.
+- Docker Hub publish остаётся delivery action только для verified `main` refs.
+- Если behavior изменилось, связанную документацию обновляйте в том же PR.
 
-## Pull request evidence
+## Evidence для Pull Request
 
-A pull request is ready to merge when:
+PR готов к merge, когда:
 
-1. the change is scoped and technically explained;
-2. local preflight is complete where applicable;
-3. GitHub Actions reports green dependency integrity/Flake8, Pytest, Docker runtime/non-root and Trivy jobs;
-4. `CI / Required gate` is green;
-5. retained artifacts exist where applicable (JUnit XML, Trivy JSON and CycloneDX SBOM evidence);
-6. any runtime/dependency/security impact is documented;
-7. no secrets or generated local artifacts are included.
+1. change scoped и технически объяснён;
+2. local preflight выполнен, где применимо;
+3. GitHub Actions показывает green dependency integrity/Flake8, Pytest, Docker runtime/non-root и Trivy jobs;
+4. `CI / Required gate` — green;
+5. необходимые artifacts сохранены: JUnit XML, Trivy JSON, CycloneDX SBOM;
+6. runtime/dependency/security impact задокументирован;
+7. PR не содержит secrets или generated local artifacts.
 
-For a suspected runner/platform incident, follow `docs/pipeline-incident-runbook.md` rather than rerunning until green. A targeted diagnostic rerun is justified only after concrete external-failure evidence and recovery.
+При подозрении на runner/platform incident используйте [`docs/pipeline-incident-runbook.md`](docs/pipeline-incident-runbook.md), а не rerun-until-green. Один targeted diagnostic rerun допустим только после concrete evidence внешней ошибки и восстановления.
 
-## CI/CD ownership
+## Ownership CI/CD
 
-GitHub Actions is the merge-validation path. Jenkins is the delivery path that repeats quality checks and may publish a versioned Docker image from `main` before sending best-effort Telegram observability.
+GitHub Actions — merge-validation path. Jenkins — delivery path, который повторяет quality checks и может публиковать versioned Docker image из `main`, после чего отправляет best-effort Telegram observability.
 
-A successful GitHub Actions run proves repository-level validation, not the availability or correctness of external Jenkins/Docker Hub credentials. Conversely, a Telegram transport failure is not a substitute for a failed application, test, security or delivery signal.
+Успешный GitHub Actions run подтверждает repository-level validation, но не доступность внешних Jenkins/Docker Hub credentials. Аналогично Telegram transport failure не является заменой application/test/security/delivery failure.
