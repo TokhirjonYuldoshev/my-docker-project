@@ -1,48 +1,48 @@
-## Summary
+## Краткое описание
 
-<!-- Describe one focused engineering outcome and why it is needed. -->
+<!-- Опишите одну сфокусированную инженерную задачу и зачем она нужна. -->
 
-## Risk area
+## Область риска
 
 - [ ] Python behavior / tests
 - [ ] GitHub Actions / quality gates
 - [ ] Docker image / runtime
-- [ ] Dependency / security
+- [ ] Dependencies / security
 - [ ] Jenkins delivery / credentials / notifications
-- [ ] Documentation only
+- [ ] Только документация
 
-## Verification
+## Проверка
 
-Mark the evidence relevant to this change:
+Отметьте evidence, относящееся к этому изменению:
 
-- [ ] Quality / Flake8
-- [ ] Tests / Pytest
-- [ ] Docker / Build + runtime smoke
-- [ ] Security / Trivy container scan
-- [ ] CI / Required gate
-- [ ] Jenkins-specific behavior reviewed when Jenkinsfile changed
+- [ ] `Quality / Flake8`
+- [ ] `Tests / Pytest`
+- [ ] `Docker / Build + runtime smoke`
+- [ ] `Security / Trivy container scan`
+- [ ] `CI / Required gate`
+- [ ] Jenkins-specific behavior проверено, если менялся `Jenkinsfile`
 
-Evidence / run links:
+Ссылки на run/evidence:
 
-<!-- Add links when they help review or failure triage. -->
+<!-- Добавляйте ссылки, когда они помогают review или failure triage. -->
 
-## Safeguards
+## Защитные условия
 
-- [ ] No token, password or registry credential was committed
-- [ ] CI does not publish images or require external secrets
-- [ ] A functional test failure is not masked by notification/cleanup logic
-- [ ] Docker runtime validation still exercises the built image
-- [ ] Security policy was not weakened to make a dependency update green
-- [ ] Documentation matches the implemented pipeline
-- [ ] No unrelated workaround or scope creep is bundled into this PR
+- [ ] В repository не попали token, password или registry credential
+- [ ] GitHub Actions CI не публикует images и не требует external delivery secrets
+- [ ] Functional/test failure не маскируется notification/cleanup logic
+- [ ] Docker runtime validation по-прежнему запускает собранный image
+- [ ] Security policy не ослаблена ради green dependency update
+- [ ] Документация соответствует реализованному pipeline
+- [ ] PR не содержит unrelated workaround или scope creep
 
-## Failure classification
+## Классификация исходной ошибки
 
-If this PR responds to a failure, classify the original signal:
+Если PR исправляет failure, укажите owning signal:
 
 - [ ] Application/test behavior
 - [ ] Packaging/container runtime
 - [ ] Dependency/security
 - [ ] Jenkins/registry delivery
-- [ ] Notification/observability only
-- [ ] Not applicable
+- [ ] Только notification/observability
+- [ ] Не применимо

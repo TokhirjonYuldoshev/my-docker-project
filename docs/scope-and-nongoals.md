@@ -1,59 +1,59 @@
-# Scope and non-goals
+# Scope и non-goals проекта
 
-## Purpose
+## Назначение
 
-This repository is a compact QA/DevOps portfolio system for demonstrating deterministic quality gates around a deliberately small Python application.
+Этот репозиторий — компактная QA/DevOps portfolio system для демонстрации детерминированных quality gates вокруг намеренно небольшого Python-приложения.
 
-The engineering value is in the pipeline contract rather than application complexity:
+Инженерная ценность находится в pipeline contract, а не в сложности приложения:
 
-- static analysis and dependency integrity;
+- static analysis и dependency integrity;
 - unit-test evidence;
-- container build and runtime validation;
+- container build и runtime validation;
 - non-root runtime policy;
-- container vulnerability scanning and CycloneDX SBOM evidence;
+- container vulnerability scanning и CycloneDX SBOM evidence;
 - aggregate CI gating;
-- Jenkins delivery controls and non-blocking observability.
+- Jenkins delivery controls и non-blocking observability.
 
-## What this repository proves
+## Что репозиторий действительно доказывает
 
-A revision is considered healthy only when the independent validation signals agree:
+Revision считается healthy только когда независимые validation signals согласованы:
 
-1. Python dependencies are internally consistent.
-2. Flake8 passes.
-3. Pytest passes and produces JUnit evidence.
-4. The Docker image builds from the checked-in source.
-5. The container starts and returns the expected observable output.
-6. The image declares a non-root runtime user.
-7. The Trivy security policy passes and SBOM generation succeeds.
-8. The aggregate required gate remains green only when every blocking upstream gate is green.
+1. Python dependencies внутренне совместимы.
+2. Flake8 проходит.
+3. Pytest проходит и создаёт JUnit evidence.
+4. Docker image собирается из checked-in source.
+5. Container запускается и возвращает ожидаемый observable output.
+6. Image объявляет non-root runtime user.
+7. Trivy security policy проходит, а SBOM generation завершается успешно.
+8. `CI / Required gate` остаётся green только когда все blocking upstream gates green.
 
-## Non-goals
+## Что не является целью
 
-This project intentionally does **not** claim to be:
+Проект намеренно **не заявляет себя** как:
 
-- a production application;
-- a large automated test suite;
-- a Kubernetes or cloud-deployment platform;
-- a production SRE monitoring system;
-- a substitute for environment-specific release approval.
+- production application;
+- большая automated test suite;
+- Kubernetes или cloud-deployment platform;
+- production SRE monitoring system;
+- замена environment-specific release approval.
 
-Adding technologies without a real validation signal would make the repository noisier rather than stronger.
+Добавление технологий без нового проверяемого сигнала сделало бы репозиторий шумнее, а не сильнее.
 
-## Delivery boundary
+## Граница delivery
 
-GitHub Actions is the repository-level validation path. It does not publish Docker images.
+GitHub Actions — repository-level validation path. Он не публикует Docker images.
 
-Jenkins is the demonstration delivery path. Image publication is restricted to the verified main branch and uses Jenkins-managed credentials. Telegram is an observability channel only; notification delivery cannot rewrite the underlying pipeline result.
+Jenkins — демонстрационный delivery path. Публикация image разрешена только для verified `main` и использует Jenkins-managed credentials. Telegram — observability channel; notification delivery не может переписать underlying pipeline result.
 
-## Failure-handling principles
+## Принципы обработки ошибок
 
-- Fail on observable product or pipeline contract violations.
-- Preserve evidence before enforcing a failure where practical.
-- Do not hide failures with arbitrary sleeps, rerun-until-green loops or permissive exit-code handling.
-- Treat security, test, build and runtime signals independently before aggregation.
-- Keep credentials outside source control.
-- Prefer explicit runtime and dependency baselines over implicit latest-version behavior.
+- Fail на observable product или pipeline contract violation.
+- Где возможно, сохранять evidence до enforcement failure.
+- Не скрывать failures через arbitrary sleeps, rerun-until-green loops или permissive exit-code handling.
+- Рассматривать security, test, build и runtime signals независимо до aggregation.
+- Хранить credentials вне source control.
+- Предпочитать explicit runtime/dependency baselines неявному `latest` behavior.
 
-## Review rule
+## Правило review
 
-A pipeline change is complete only when its expected failure semantics are understandable from the diff and the repository CI confirms the changed contract.
+Изменение pipeline считается завершённым только когда ожидаемые failure semantics понятны из diff, а CI репозитория подтверждает изменённый contract.
