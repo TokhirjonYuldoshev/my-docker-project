@@ -1,10 +1,10 @@
 # Политика безопасности
 
-Это публичный QA/DevOps портфолио-проект с примерами CI, Docker, Jenkins и notification integration. Реальные credentials в репозитории **не допускаются**.
+Это публичный QA/DevOps проект с CI, Docker, Jenkins и notification integration. Реальные credentials в репозитории **не допускаются**.
 
 ## Поддерживаемое состояние
 
-Security fixes применяются к текущей ветке `main`. Исторические commits и старые portfolio branches не поддерживаются как отдельные версии.
+Security fixes применяются к текущей ветке `main`. Исторические commits и старые feature branches не поддерживаются как отдельные версии.
 
 ## Как сообщить о проблеме безопасности
 
