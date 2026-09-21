@@ -2,7 +2,7 @@
 
 [![Python & Docker CI](https://github.com/TokhirjonYuldoshev/my-docker-project/actions/workflows/ci.yml/badge.svg)](https://github.com/TokhirjonYuldoshev/my-docker-project/actions/workflows/ci.yml)
 
-Компактный QA/DevOps портфолио-проект, в котором основная ценность находится не в размере Python-приложения, а в **проверяемом pipeline contract**: dependency integrity, lint, tests, Docker runtime, non-root policy, container security, evidence, controlled delivery и observability проверяются отдельными сигналами.
+Инженерный QA/DevOps проект, в котором основная ценность находится не в размере Python-приложения, а в **проверяемом pipeline contract**: dependency integrity, lint, tests, Docker runtime, non-root policy, container security, evidence, controlled delivery и observability проверяются отдельными сигналами.
 
 Проект разделяет два пути:
 
@@ -292,6 +292,3 @@ my-docker-project/
 
 Задача — сделать failure понятным и доказуемым, а не просто получить зелёный badge.
 
----
-
-**Портфолио-проект Тохиржона Йулдошева**
