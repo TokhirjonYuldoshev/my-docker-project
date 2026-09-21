@@ -247,7 +247,7 @@ jobs:
 
           cat >> "$GITHUB_STEP_SUMMARY" <<EOF
           # Python & Docker CI — итог
-          _QA/DevOps portfolio pipeline • GitHub Actions_
+          _QA/DevOps quality pipeline • GitHub Actions_
 
           ## ${OVERALL}
           > ${NOTE}
@@ -423,7 +423,7 @@ jobs:
           {
             echo "## ✈️ Telegram"
             echo
-            echo "✅ Итог CI отправлен в Telegram в едином формате портфолио."
+            echo "✅ Итог CI отправлен в Telegram в стандартизированном CI-формате."
           } >> "$GITHUB_STEP_SUMMARY"
 
           echo "Telegram notification sent."
