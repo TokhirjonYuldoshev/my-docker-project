@@ -1,4 +1,4 @@
-FROM python:3.12.14-slim-bookworm@sha256:782412e85d0f0984994c290652577d4018aff08145c85b262bb63dc0c7522254
+FROM python:3.12.16-slim-bookworm@sha256:e697c81897302a4c4333bade000d98038fbb21eb064f8ee1fd42d02ebcd9d337
 
 LABEL org.opencontainers.image.source="https://github.com/TokhirjonYuldoshev/my-docker-project"
 
